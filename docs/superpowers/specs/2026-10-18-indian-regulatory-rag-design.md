@@ -11,8 +11,7 @@ are the deliverable.
 
 The differentiator is deliberately not "a RAG application". Anyone can glue an embedding model to
 a vector store. The scarce skill is proving a retrieval system works, quantifying each design
-choice, and explaining the failures. So the deliverable is a working RAG system plus a measured
-evaluation harness and an ablation table.
+choice, and explaining the failures.
 
 Success criteria:
 

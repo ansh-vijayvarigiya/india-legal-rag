@@ -19,6 +19,7 @@ decided, why, what was rejected, and what it costs if the call turns out wrong.
 | D-012 | Ground-truth labels come from reverse generation plus human verification | 2026-10-18 |
 | D-013 | The repo opens private, and the work email is stripped from git history | 2026-10-18 |
 | D-014 | Archify receipt JSON files are not committed | 2026-10-18 |
+| D-015 | Emptying the index drops the local storage directory | 2026-10-18 |
 
 ---
 
@@ -260,3 +261,24 @@ in a repository makes the author look like they do not curate.
 
 **Cost if wrong.** The build provenance of a committed diagram is not recorded. Regenerating the
 diagram restores it.
+
+## D-015 — Emptying the index drops the local storage directory (2026-10-18)
+
+**Context.** `ChunkIndex.recreate` has to return an empty collection. The ingest CLI relies on it,
+and it is the only way to rebuild the index after a chunking change.
+
+**Decision.** `recreate` closes the client, removes the Qdrant storage directory, and opens a fresh
+client.
+
+**Why.** Measured on `qdrant-client` 1.19.1 in local mode: `delete_collection` followed by
+`create_collection` reports the collection as gone, but the points are still there. `count()`
+returns 1 and `retrieve` hands back the old point — including from a client freshly reopened on the
+same path, so the deletion is not persisted to disk at all. The sequence the plan specifies silently
+fails to empty the index. Removing the directory demonstrably works: `count()` returns 0 and the old
+point is unreachable.
+
+**Rejected.** `delete_collection` plus `create_collection` as specified, which is insufficient in
+local mode; and deleting points by id before recreating, which is more code for the same outcome.
+
+**Cost if wrong.** The directory is removed rather than emptied in place, so anything else stored
+beside it would go too. Nothing else is: the directory holds only this collection.

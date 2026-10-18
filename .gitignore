@@ -4,6 +4,10 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .superpowers/
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
 data/raw/*
 !data/raw/rbi/
 data/parsed/

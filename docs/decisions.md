@@ -363,3 +363,59 @@ a smaller diff but it leaves the module's own entry point silently broken.
 **Cost if wrong.** An extra layer of indirection at startup, so a crash before the server binds is
 reported by the Streamlit CLI rather than by plain Python. Verified by starting the app and reading
 `_stcore/health`.
+
+
+## D-020 - Answers are written by a hosted model reading the retrieved passages (2026-10-18)
+
+**Context.** Retrieval alone hands the reader the passages that mention their subject and expects them
+to find the answer inside those passages. That is a workable tool for someone who knows the domain and
+an unusable one for anyone else. The first person to open the inspector, the author, typed `ITC`, got
+ten paragraphs of tax law back, and could not tell which of them, if any, answered the question. A
+showcase that its own author cannot read is not a showcase.
+
+**Decision.** A language model reads the retrieved passages and answers in plain English, citing the
+passages it used. It is reached over an OpenAI-compatible chat endpoint, so the provider is
+configuration rather than code. The passages stay on the page underneath the answer, because the point
+is to make the answer checkable and not to make it authoritative.
+
+**Why.** The instruction, not the model, is what keeps the answer inside the corpus. Asked what a bank
+rate is with no passages supplied, the chosen model described a commercial bank's lending rate, which
+is not the RBI's Bank Rate: a confident answer to a different question. So the prompt forbids outside
+knowledge, requires an explicit refusal when the passages do not answer, and forbids legal advice. The
+refusal is not a fallback path, it is the correct output for a question this corpus cannot answer, and
+two of the twenty golden questions exist to exercise exactly that.
+
+**Rejected.** Local inference with Ollama, which needs no key and works offline but cannot run on a
+free host, so the public demo would not exist. Also rejected: keeping the key in the repository or in
+code. It lives in a git-ignored `.env`, and the setting is a `SecretStr`, so neither a stray `print`
+nor an error message can leak it.
+
+**Cost if wrong.** An external dependency, a per-question cost, and a new way to be wrong: the model
+can state something the corpus does not support. The mitigations are the citation markers, the refusal
+instruction, and the grader that is the next step. The retrieval metrics in `results.md` are unaffected
+either way, because the model is not in that path.
+
+## D-021 - Five passages are sent, and the passage count is a token budget (2026-10-18)
+
+**Context.** The free tier of the chosen provider allows 8,000 tokens per minute. Every retrieved
+passage is sent whole, so the passage count is the request size, and the request size decides how many
+questions a minute the demo can answer.
+
+**Decision.** Send the top five passages. Ask for `reasoning_effort="low"`. Cap the reply at 500 tokens.
+Inspect the reply's `finish_reason` and treat `"length"` as an error rather than displaying half a
+sentence.
+
+**Why.** Five is set by the corpus rather than by taste. Three would halve the cost, but `q014` needs a
+second labelled chunk that sits at rank 4, so a three-passage prompt refuses a question this system can
+answer, and refusal is indistinguishable from a correct refusal to the reader. The reply cap and the
+reasoning setting are both fixes for defects seen in a live run: at the default reasoning effort the
+model spends the reply budget thinking and returns a sentence cut off mid-clause, with nothing on the
+page to distinguish that from a finished answer. Measuring `finish_reason` is what turns that silent
+failure into a message.
+
+**Rejected.** Trimming each passage so more of them fit. It risks cutting the sentence that holds the
+answer, and the 200-character chunk overlap only partly covers the loss.
+
+**Cost if wrong.** A visitor who asks three questions inside a minute is rate-limited and gets a
+message instead of an answer. The app says what happened and still shows the passages, which cost
+nothing to display.

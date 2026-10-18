@@ -1216,6 +1216,85 @@ git commit -m "feat: add verified 20-question golden set and baseline results"
 
 ---
 
+### Task 16: Retrieval inspector
+
+**Files:**
+- Create: `src/legalrag/inspector.py`
+- Modify: `pyproject.toml` (add `streamlit` to the `dev` extra)
+- Modify: `Makefile` (add an `inspect` target)
+- Test: `tests/test_inspector.py`
+
+**Interfaces:**
+- Consumes: `ChunkIndex` from Task 9; `Embedder` from Task 8; `DenseRetriever` from Task 10; `Retrieved` from Task 2; `Settings` from Task 1.
+- Produces: `results_rows(hits: Sequence[Retrieved]) -> list[dict]`.
+
+This is a diagnostic tool, not a product surface. It exists so retrieval quality can be inspected by eye while the ablation work is being done. The deployed product surface is a later piece of work, after answer generation exists.
+
+The pure data-shaping function is separated from the rendering on purpose: Streamlit rendering is not worth unit-testing, but the table contents are.
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+from legalrag.inspector import results_rows
+from legalrag.models import Chunk, Retrieved
+
+
+def test_results_rows_shapes_hits_for_display():
+    hits = [
+        Retrieved(
+            chunk=Chunk("d#0000", "d", 0, "text zero", "text zero", {"citation": "CGST Rules, 2017, Rule 36(4)"}),
+            score=0.91,
+            rank=1,
+        ),
+        Retrieved(chunk=Chunk("d#0001", "d", 1, "text one", "text one", {}), score=0.42, rank=2),
+    ]
+    rows = results_rows(hits)
+    assert rows[0]["rank"] == 1
+    assert rows[0]["chunk_id"] == "d#0000"
+    assert rows[0]["citation"] == "CGST Rules, 2017, Rule 36(4)"
+    assert rows[0]["text"] == "text zero"
+    assert list(rows[0]) == ["rank", "score", "chunk_id", "doc_id", "citation", "text", "chars"]
+
+
+def test_results_rows_handles_no_hits():
+    assert results_rows([]) == []
+
+
+def test_results_rows_uses_empty_citation_when_metadata_is_missing():
+    hits = [Retrieved(chunk=Chunk("d#0000", "d", 0, "t", "t", {}), score=1.0, rank=1)]
+    assert results_rows(hits)[0]["citation"] == ""
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `python -m pytest tests/test_inspector.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'legalrag.inspector'`
+
+- [ ] **Step 3: Implement `results_rows` and the Streamlit page**
+
+`results_rows` maps each `Retrieved` to a row dict with `rank`, `score` rounded to four decimals, `chunk_id`, `doc_id`, `citation` read from `chunk.metadata.get("citation", "")`, `text`, and `chars` as `len(chunk.text)`.
+
+The Streamlit page, run via `python -m legalrag.inspector`, loads settings, reads `{data_dir}/chunks/chunks.jsonl`, rebuilds `ChunkIndex` with `recreate()`, builds a `DenseRetriever`, and renders a text input for the query, a number input for `k` (default 10, maximum 50), and the results as a dataframe from `results_rows` with the full chunk text in an expander per row. Show the index chunk count in the sidebar. Add an `inspect` target to the `Makefile` running `python -m legalrag.inspector`.
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `python -m pytest tests/test_inspector.py -v`
+Expected: PASS (3 tests)
+
+- [ ] **Step 5: Verify the page renders against the real corpus**
+
+Run: `make inspect`
+Expected: the app starts and reports a non-zero chunk count in the sidebar. Run a query from the golden set and confirm the verified chunk appears in the returned rows. Stop the app.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/legalrag/inspector.py pyproject.toml Makefile tests/test_inspector.py
+git commit -m "feat: add retrieval inspector"
+```
+
+---
+
 ## Notes for the Implementer
 
 - Tasks 1 to 14 are all offline and deterministic except the one-time fixture capture in Task 4 and the model download in Task 8. Only Task 15 touches the live network at scale.

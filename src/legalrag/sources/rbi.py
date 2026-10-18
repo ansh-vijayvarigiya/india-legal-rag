@@ -11,6 +11,9 @@ from pathlib import Path
 import httpx
 from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
+from legalrag.models import Document
+from legalrag.normalize import normalize_text
+
 BASE_URL = "https://www.rbi.org.in/Scripts/NotificationUser.aspx"
 USER_AGENT = "legalrag/0.1 (offline retrieval research)"
 REQUEST_TIMEOUT_SECONDS = 30.0
@@ -18,6 +21,8 @@ REQUEST_DELAY_SECONDS = 1.0
 
 _LINK_ID = re.compile(r"NotificationUser\.aspx\?Id=(\d+)")
 _DATE_CELL = "td.tableheader"
+_CIRCULAR_NUMBER = re.compile(r"RBI/\d{4}-\d{2}/\d+")
+MIN_BODY_CHARS = 200
 
 
 class ParseError(Exception):
@@ -106,3 +111,59 @@ def fetch_index(client: httpx.Client, snapshot_dir: Path) -> Path:
 
 def fetch_document(client: httpx.Client, ref: NotificationRef, snapshot_dir: Path) -> Path:
     return _write(snapshot_dir, f"{ref.source_id}.html", _get(client, ref.url))
+
+
+def _body_container(tree: HTMLParser):
+    """The content column. A page carries several `container_12` blocks; the body is the longest."""
+    containers = tree.css("div.container_12")
+    if not containers:
+        return None
+    return max(containers, key=lambda node: len(node.text(strip=True)))
+
+
+def _body_offset(text: str, title: str) -> int | None:
+    """Where the document starts. Everything above it is site navigation chrome."""
+    offsets = []
+    if title:
+        index = text.find(title)
+        if index >= 0:
+            offsets.append(index)
+    match = _CIRCULAR_NUMBER.search(text)
+    if match is not None:
+        offsets.append(match.start())
+    return min(offsets) if offsets else None
+
+
+def parse_document(ref: NotificationRef, html: str) -> Document:
+    """A notification page as a Document, or ParseError if it is not one.
+
+    An unrecognised page must fail loudly rather than yield an empty document.
+    """
+    container = _body_container(HTMLParser(html))
+    if container is None:
+        raise ParseError(f"no content container in rbi:{ref.source_id}")
+
+    text = container.text(separator="\n", strip=True)
+    start = _body_offset(text, ref.title)
+    if start is not None:
+        text = text[start:]
+    text = normalize_text(text)
+
+    if len(text) < MIN_BODY_CHARS:
+        raise ParseError(
+            f"only {len(text)} characters of body text in rbi:{ref.source_id}"
+        )
+
+    circular = _CIRCULAR_NUMBER.search(text)
+    return Document(
+        doc_id=f"rbi:{ref.source_id}",
+        source="rbi",
+        source_url=ref.url,
+        title=ref.title,
+        published=ref.published,
+        text=text,
+        metadata={
+            "published": ref.published or "",
+            "circular": circular.group(0) if circular is not None else "",
+        },
+    )

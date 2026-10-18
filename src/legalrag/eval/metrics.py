@@ -14,7 +14,8 @@ from dataclasses import dataclass
 
 
 def _hits(ranked: Sequence[str], relevant: Collection[str], k: int) -> int:
-    return sum(1 for chunk_id in ranked[:k] if chunk_id in relevant)
+    """Distinct relevant ids retrieved, so a repeated id cannot inflate a score."""
+    return len(set(ranked[:k]) & set(relevant))
 
 
 def recall_at_k(ranked: Sequence[str], relevant: Collection[str], k: int) -> float:
@@ -41,11 +42,13 @@ def reciprocal_rank(ranked: Sequence[str], relevant: Collection[str]) -> float:
 
 def ndcg_at_k(ranked: Sequence[str], relevant: Collection[str], k: int) -> float:
     """Discounted cumulative gain over the ideal ordering, so several relevant hits all count."""
-    gain = sum(
-        1.0 / math.log2(position + 1)
-        for position, chunk_id in enumerate(ranked[:k], start=1)
-        if chunk_id in relevant
-    )
+    seen: set[str] = set()
+    gain = 0.0
+    for position, chunk_id in enumerate(ranked[:k], start=1):
+        # A repeated id earns its discount once, not once per appearance.
+        if chunk_id in relevant and chunk_id not in seen:
+            seen.add(chunk_id)
+            gain += 1.0 / math.log2(position + 1)
     ideal = sum(
         1.0 / math.log2(position + 1)
         for position in range(1, min(len(relevant), k) + 1)
@@ -67,6 +70,12 @@ def aggregate(
     ks: Sequence[int],
 ) -> RetrievalMetrics:
     """Per-question metrics, then the arithmetic mean across questions."""
+    if len(ranked_lists) != len(relevant_sets):
+        # Zipping would silently drop the tail and average over the rest.
+        raise ValueError(
+            f"{len(ranked_lists)} ranked lists against "
+            f"{len(relevant_sets)} relevant sets"
+        )
 
     def mean(values) -> float:
         values = list(values)

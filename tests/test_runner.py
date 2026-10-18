@@ -54,3 +54,23 @@ def test_run_eval_on_no_questions_returns_zero_metrics():
     run = run_eval(FakeRetriever([]), [], config="dense", ks=[5])
     assert run.metrics.mrr == 0.0
     assert run.results == ()
+
+
+def test_run_eval_rejects_a_k_max_below_the_deepest_reported_k():
+    # Otherwise recall@20 would be computed over five results and still be
+    # reported as recall@20.
+    with pytest.raises(ValueError, match="k_max"):
+        run_eval(
+            FakeRetriever(["d#0000"]),
+            [_question()],
+            config="dense",
+            k_max=5,
+            ks=[5, 10, 20],
+        )
+
+
+def test_run_eval_reports_only_the_depths_it_can_reach():
+    run = run_eval(
+        FakeRetriever(["d#0000"]), [_question()], config="dense", k_max=5, ks=[5]
+    )
+    assert set(run.metrics.recall) == {5}

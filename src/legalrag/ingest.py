@@ -95,6 +95,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"documents: {len(documents)}")
     print(f"chunks: {len(chunks)}")
     print(f"parse failures: {failures}")
+    if not chunks:
+        # Every page failing to parse is a regression, not a partial corpus.
+        print("error: no chunks were produced", file=sys.stderr)
+        return 1
     return 0
 
 

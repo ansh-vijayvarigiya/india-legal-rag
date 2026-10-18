@@ -17,11 +17,16 @@ evaluation harness and an inspection tool. There is no answer generation yet.
 ## Corpus
 
 25 notifications from the Reserve Bank of India, captured on 2026-10-18 and
-stored as HTML snapshots under `data/raw/rbi/`. Ingest normalises each page to
-plain text, drops the site's navigation and archive markup, and splits the body
-into fixed-size overlapping chunks of about 2,000 characters. The result is 154
-chunks with source URL, circular number and publication date attached. 25 of 25
-documents parse, with no failures.
+stored as HTML snapshots under `data/raw/rbi/`. The snapshots are committed, so
+the corpus and the baseline below reproduce exactly from a clone:
+`make ingest-offline` rebuilds the corpus from them with no network. Re-fetching
+from the live index instead will pick up whatever it currently lists and move
+the numbers, because the golden set labels chunk ids of this capture.
+
+Ingest normalises each page to plain text, drops the site's navigation and
+archive markup, and splits the body into fixed-size overlapping chunks of about
+2,000 characters. The result is 154 chunks with source URL, circular number and
+publication date attached. 25 of 25 documents parse, with no failures.
 
 Sources:
 
@@ -38,11 +43,11 @@ Requires Python 3.11. On Windows:
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
 
-# fetch and index the corpus (network)
+# fetch and index the corpus (network; the live RBI index decides which 25 pages)
 .venv\Scripts\python.exe -m legalrag.ingest --source rbi
 
-# or ingest the committed snapshots, offline
-.venv\Scripts\python.exe -m legalrag.ingest --source rbi --snapshots tests/fixtures/rbi
+# or rebuild the committed corpus from the committed snapshots, offline
+.venv\Scripts\python.exe -m legalrag.ingest --source rbi --snapshots data/raw/rbi
 
 # score retrieval against the golden set, writing results.md
 .venv\Scripts\python.exe -m legalrag.eval
@@ -51,8 +56,10 @@ python -m venv .venv
 .venv\Scripts\python.exe -m legalrag.inspector
 ```
 
-`make test`, `make test-all`, `make ingest`, `make eval` and `make inspect` wrap
-the same commands.
+`make test`, `make test-all`, `make ingest`, `make ingest-offline`, `make eval`
+and `make inspect` wrap the same commands. On Windows pass the interpreter
+explicitly, since another Python version is also installed:
+`make eval PYTHON=.venv/Scripts/python.exe`.
 
 The first run downloads the embedding model (`BAAI/bge-small-en-v1.5`, about
 130 MB) and embeds on CPU. No API key is needed and nothing calls a hosted

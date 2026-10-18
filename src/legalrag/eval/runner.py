@@ -58,6 +58,13 @@ def run_eval(
     The corpus check lives in the caller, which is the layer that holds the
     chunk store; `Retriever` exposes no way to enumerate the corpus.
     """
+    if ks and max(ks) > k_max:
+        raise ValueError(
+            f"k_max is {k_max} but ks asks for {max(ks)}: "
+            "the deeper columns would be computed over a shorter list and "
+            "reported under the wrong name"
+        )
+
     results: list[QuestionResult] = []
     for question in questions:
         hits = retriever.retrieve(question.question, k=k_max)

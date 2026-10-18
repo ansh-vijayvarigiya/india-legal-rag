@@ -57,8 +57,9 @@ fragments, and stamps a document-level `citation` onto each chunk's metadata. Th
 **Why it is a shape change.** The first corpus was roughly a quarter navigation markup, and that
 markup was indexed and retrieved on equal terms with provisions. Every retrieval number before this
 change was measured against a corpus that was partly not a corpus, and the chunk count was not a
-meaningful size measure. Chunk ids after the first chunk are unaffected only where the cut fell past
-them; a re-ingest was required and the golden set was labelled against the corrected corpus.
+meaningful size measure. The cut shortened every multi-chunk document, which moved the chunk ids of
+every chunk after the first one, so the corpus had to be re-ingested and the golden set relabelled
+against the corrected corpus.
 
 **Now checkable that was not before.** A retrieved result can be cited to a human as a document, so
 the inspector shows something meaningful and a golden label can be read back as a document.

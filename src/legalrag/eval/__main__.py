@@ -10,7 +10,12 @@ from legalrag.config import Settings
 from legalrag.corpus import read_chunks
 from legalrag.embed import Embedder
 from legalrag.eval.report import render_report, write_report
-from legalrag.eval.runner import DEFAULT_K_MAX, run_eval, validate_golden_against_corpus
+from legalrag.eval.runner import (
+    DEFAULT_K_MAX,
+    DEFAULT_KS,
+    run_eval,
+    validate_golden_against_corpus,
+)
 from legalrag.golden import GoldenSetError, load_golden_set
 from legalrag.index import ChunkIndex
 from legalrag.ingest import main as ingest_main
@@ -60,6 +65,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
+    # An empty golden set scores 0.00 across the board and would read as a
+    # measurement, so it is an error rather than a report.
+    if not questions:
+        print(f"error: golden set at {golden_path} has no questions", file=sys.stderr)
+        return 1
+
     # A label pointing at a chunk the corpus no longer has must fail loudly here,
     # where the corpus is known, rather than scoring zero.
     try:
@@ -74,10 +85,19 @@ def main(argv: list[str] | None = None) -> int:
     try:
         index.recreate()
         index.upsert(chunks, embedder.encode([chunk.embed_text for chunk in chunks]))
+        if index.count() != len(chunks):
+            print(
+                f"error: indexed {index.count()} of {len(chunks)} chunks",
+                file=sys.stderr,
+            )
+            return 1
         retriever = DenseRetriever(index, embedder)
         configurations = [args.config] if args.config else list(CONFIGURATIONS)
+        # Only report the depths that were actually retrieved; a column computed
+        # over a shorter list would carry a name it has not earned.
+        ks = tuple(k for k in DEFAULT_KS if k <= args.k_max)
         runs = [
-            run_eval(retriever, questions, config=name, k_max=args.k_max)
+            run_eval(retriever, questions, config=name, k_max=args.k_max, ks=ks)
             for name in configurations
         ]
     finally:

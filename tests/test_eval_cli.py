@@ -37,3 +37,12 @@ def test_eval_cli_reports_a_missing_golden_set(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert ingest_main(["--source", "rbi", "--snapshots", str(FIXTURES)]) == 0
     assert main(["--golden", "absent.yaml"]) == 1
+
+
+def test_eval_cli_reports_an_empty_golden_set(tmp_path, monkeypatch):
+    # An empty set scores 0.00 everywhere, which reads as a measurement.
+    monkeypatch.setenv("LEGALRAG_DATA_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    assert ingest_main(["--source", "rbi", "--snapshots", str(FIXTURES)]) == 0
+    (tmp_path / "golden.yaml").write_text("# no questions yet\n", encoding="utf-8")
+    assert main(["--golden", "golden.yaml"]) == 1

@@ -84,15 +84,16 @@ def parse_index(html: str) -> list[NotificationRef]:
     for row in tree.css("tr"):
         heading = row.css_first(_DATE_CELL)
         if heading is not None:
+            # Carry the date forward. Do not skip the row: a layout that puts a
+            # link beside its date cell would otherwise lose that notification.
             published = _date_from_cell(heading.text(strip=True))
-            continue
 
         for anchor in row.css("a"):
             match = _LINK_ID.search(anchor.attributes.get("href") or "")
             if match is None:
                 continue
             source_id = match.group(1)
-            title = anchor.text(strip=True)
+            title = " ".join(anchor.text().split())
             if source_id in seen or not title:
                 continue
             seen.add(source_id)

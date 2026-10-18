@@ -1,16 +1,26 @@
-.PHONY: test test-all ingest eval inspect
+.PHONY: test test-all ingest ingest-offline eval inspect
+
+# The interpreter to run everything with. Point it at the virtualenv on Windows:
+#   make eval PYTHON=.venv/Scripts/python.exe
+# The default matters: Python 3.14 is also installed on the development machine,
+# and this project requires 3.11.
+PYTHON ?= python
 
 test:
-	python -m pytest -m "not slow"
+	$(PYTHON) -m pytest -m "not slow"
 
 test-all:
-	python -m pytest
+	$(PYTHON) -m pytest
 
 ingest:
-	python -m legalrag.ingest --source rbi
+	$(PYTHON) -m legalrag.ingest --source rbi
+
+# Rebuild the corpus from the committed snapshots, with no network.
+ingest-offline:
+	$(PYTHON) -m legalrag.ingest --source rbi --snapshots data/raw/rbi
 
 eval:
-	python -m legalrag.eval
+	$(PYTHON) -m legalrag.eval
 
 inspect:
-	python -m legalrag.inspector
+	$(PYTHON) -m legalrag.inspector

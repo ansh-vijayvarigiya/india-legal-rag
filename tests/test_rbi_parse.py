@@ -34,6 +34,12 @@ def test_parse_document_drops_trailing_site_chrome():
     assert "All Months" not in doc.text
     assert "DateSettree" not in doc.text
 
+    # ...and that the cut does not eat the body it is supposed to keep. Without
+    # this, a cut that truncated everything would still pass the two above.
+    flat = " ".join(doc.text.split())
+    assert "without prejudice to permissions / approvals" in flat
+    assert "Chief General Manager" in flat
+
 
 def test_parse_document_rejects_unrecognised_page():
     ref = NotificationRef("99999", "https://www.rbi.org.in/x", "Broken", None)

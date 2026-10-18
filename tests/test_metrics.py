@@ -76,3 +76,18 @@ def test_aggregate_with_no_questions_scores_zero():
     assert metrics.precision[5] == 0.0
     assert metrics.mrr == 0.0
     assert metrics.ndcg[5] == 0.0
+
+
+def test_duplicate_retrieved_ids_cannot_inflate_a_score():
+    # A retriever that repeats a point must not be able to score above 1.0.
+    assert recall_at_k(["a", "a", "b"], {"a", "b"}, 5) == 1.0
+    assert precision_at_k(["a", "a"], {"a"}, 2) == pytest.approx(0.5)
+    assert ndcg_at_k(["a", "a"], {"a", "b"}, 2) == pytest.approx(1 / math.log2(2) / (
+        1 / math.log2(2) + 1 / math.log2(3)
+    ))
+
+
+def test_aggregate_rejects_mismatched_inputs():
+    # Zipping would drop the tail and quietly average over the rest.
+    with pytest.raises(ValueError, match="2 ranked lists against 3"):
+        aggregate([["a"], ["b"]], [{"a"}, {"b"}, {"c"}], ks=[5])

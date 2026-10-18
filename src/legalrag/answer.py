@@ -32,8 +32,13 @@ Rules:
   this in the circulars provided" and stop. Do not guess.
 - Cite the passage numbers you relied on, as [1] or [2], next to the sentence
   they support.
-- Answer in two or three sentences of plain English. Quote the exact figure,
-  rate, date or threshold when there is one.
+- Write a short explanation, not a one-line answer. Give the direct answer
+  first, then the specifics behind it: figures, rates, dates, thresholds and
+  conditions. Use a short bullet list when there are several.
+- Expand every acronym the first time you use it, in brackets, because the
+  reader may not work in this field.
+- Keep it under about 120 words. Say what the passages state, and say so plainly
+  when they cover the question only partly.
 - You are not a lawyer. Give no legal advice and no recommendation about what
   the reader should do.
 """
@@ -59,8 +64,9 @@ def _normalise_markers(text: str) -> str:
 # second chunk and those sit as deep as rank 4, so a shorter prompt refuses
 # questions it could have answered. Three would halve the cost and cost answers.
 MAX_PASSAGES = 5
-# Room for two or three sentences plus the model's own thinking.
-MAX_REPLY_TOKENS = 500
+# Room for an explanation of about a hundred words, a short bullet list, and the
+# model's own thinking. The finish_reason check catches it if this is too small.
+MAX_REPLY_TOKENS = 700
 
 
 class LLMError(RuntimeError):

@@ -59,6 +59,14 @@ def test_instructions_forbid_outside_knowledge_and_require_refusal():
     assert "do not guess" in system
 
 
+def test_the_prompt_asks_for_an_explanation_rather_than_a_one_liner():
+    """A one-line verdict teaches a reader who does not know the domain nothing."""
+    system = build_messages("q", [_hit("rbi:1#0000", "t")])[0]["content"].lower()
+    assert "not a one-line answer" in system
+    assert "expand every acronym" in system
+    assert "words" in system
+
+
 def test_the_question_and_the_passages_are_both_sent():
     messages = build_messages("what is the rate?", [_hit("rbi:1#0000", "the rate is 4%")])
     assert messages[0]["role"] == "system"

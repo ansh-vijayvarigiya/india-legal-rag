@@ -1,4 +1,4 @@
-.PHONY: test test-all ingest eval
+.PHONY: test test-all ingest eval inspect
 
 test:
 	python -m pytest -m "not slow"
@@ -11,3 +11,6 @@ ingest:
 
 eval:
 	python -m legalrag.eval
+
+inspect:
+	python -m legalrag.inspector

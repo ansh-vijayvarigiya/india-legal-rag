@@ -342,3 +342,24 @@ milestone, which is more report surface than the baseline needs.
 **Cost if wrong.** The headline figures understate retrieval quality on answerable questions by up to
 0.10. A reader who misses the caveat reads the baseline as worse than it is. Per-category reporting
 and abstention both arrive with answer generation.
+
+## D-019 — The inspector module starts its own Streamlit server (2026-10-18)
+
+**Context.** The inspector is a Streamlit app, and the plan specifies that it is run as
+`python -m legalrag.inspector`. Streamlit only provides its runtime to a script launched through
+`streamlit run`; run as a plain module, the same code emits `missing ScriptRunContext` warnings and
+serves nothing.
+
+**Decision.** `__main__` checks whether a Streamlit runtime exists. If it does, it renders. If it does
+not, it re-executes itself through `streamlit.web.cli`. Both `python -m legalrag.inspector` and
+`streamlit run src/legalrag/inspector.py` work.
+
+**Why.** The documented command has to do what it says. A command that starts nothing, or that starts
+something only partly, is worse than a longer one that works.
+
+**Rejected.** Changing the documented command and the `Makefile` target to `streamlit run` only. It is
+a smaller diff but it leaves the module's own entry point silently broken.
+
+**Cost if wrong.** An extra layer of indirection at startup, so a crash before the server binds is
+reported by the Streamlit CLI rather than by plain Python. Verified by starting the app and reading
+`_stcore/health`.

@@ -13,3 +13,4 @@ they are all properties of this machine or of a dependency.
 | `recreate()` leaves old points in the index | Qdrant local mode does not persist a collection deletion | Handled inside `ChunkIndex.recreate`, which drops the storage directory. See `decisions.md` D-015. |
 | Embedding runs on CPU although the machine has a GPU | The installed PyTorch is the CPU-only build (`2.14.1+cpu`) | Install PyTorch from the CUDA 12.8 wheel index. CPU is acceptable at this corpus size; see `decisions.md` D-006. |
 | `warning: LF will be replaced by CRLF` on commit | Git's `core.autocrlf` on Windows | Cosmetic only |
+| `python -m legalrag.inspector` prints `missing ScriptRunContext` warnings and serves nothing | A bare module run has no Streamlit runtime; only `streamlit run` sets one up | Handled inside the module, which starts the server itself when it is not already under one. `streamlit run src/legalrag/inspector.py` also works. |

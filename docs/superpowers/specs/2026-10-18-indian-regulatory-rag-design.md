@@ -164,9 +164,11 @@ Components:
   development machine. The client API is isolated behind one module so the same code runs against a
   Qdrant server later without touching retrieval logic.
 - **Embeddings:** a local `BAAI/bge` model via `sentence-transformers`. Runs on the available GPU.
-  A second embedding model is included as an additional ablation dimension. No embedding API cost.
-- **Lexical:** BM25 over the same chunks. The implementation choice between a pure-Python BM25 and
-  SQLite FTS5 is left to implementation; both are dependency-light and testable.
+  Embedding choice is itself an ablation dimension: `bge-small-en-v1.5` against
+  `bge-base-en-v1.5`, both run locally, so there is no embedding API cost.
+- **Lexical:** BM25 over the same chunks, using a pure-Python implementation with a legal-aware
+  tokenizer written here. Tokenisation control matters more than index persistence for this corpus,
+  because citations such as `36(4)` and acronyms such as `ITC` must be indexed as single terms.
 - **Fusion:** Reciprocal Rank Fusion implemented in this repository. It is roughly fifteen lines and
   is worth owning, since it has to be explained in an interview.
 - **Reranker:** a local `BAAI/bge-reranker` cross-encoder over the top 50 candidates.

@@ -24,6 +24,24 @@ _DATE_CELL = "td.tableheader"
 _CIRCULAR_NUMBER = re.compile(r"RBI/\d{4}-\d{2}/\d+")
 MIN_BODY_CHARS = 200
 
+# Every notification page appends the site's archive tree and inline stylesheets
+# after the signed text. Left in, they become most of the corpus.
+_CHROME_MARKERS = (
+    re.compile(r"\b(?:19|20)\d{2}\s+All Months\b"),
+    re.compile(r"/\*added by ni\*/"),
+    re.compile(r"#DateSettree\w*"),
+    re.compile(r"\.accordion\w*"),
+)
+
+
+def _content_end(text: str) -> int:
+    ends = [
+        match.start()
+        for pattern in _CHROME_MARKERS
+        if (match := pattern.search(text)) is not None
+    ]
+    return min(ends) if ends else len(text)
+
 
 class ParseError(Exception):
     """A page does not match the shape this source expects."""
@@ -147,7 +165,7 @@ def parse_document(ref: NotificationRef, html: str) -> Document:
     start = _body_offset(text, ref.title)
     if start is not None:
         text = text[start:]
-    text = normalize_text(text)
+    text = normalize_text(text[: _content_end(text)])
 
     if len(text) < MIN_BODY_CHARS:
         raise ParseError(
@@ -155,6 +173,7 @@ def parse_document(ref: NotificationRef, html: str) -> Document:
         )
 
     circular = _CIRCULAR_NUMBER.search(text)
+    circular_text = circular.group(0) if circular is not None else ""
     return Document(
         doc_id=f"rbi:{ref.source_id}",
         source="rbi",
@@ -164,6 +183,9 @@ def parse_document(ref: NotificationRef, html: str) -> Document:
         text=text,
         metadata={
             "published": ref.published or "",
-            "circular": circular.group(0) if circular is not None else "",
+            "circular": circular_text,
+            # Carried onto every chunk so a retrieved result can be cited, and so a
+            # golden-set label can be read back as a document rather than a bare id.
+            "citation": " ".join(part for part in (circular_text, ref.title) if part),
         },
     )

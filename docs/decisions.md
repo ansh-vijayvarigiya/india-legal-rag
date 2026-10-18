@@ -282,3 +282,63 @@ local mode; and deleting points by id before recreating, which is more code for 
 
 **Cost if wrong.** The directory is removed rather than emptied in place, so anything else stored
 beside it would go too. Nothing else is: the directory holds only this collection.
+
+## D-016 — The parser cuts the site's trailing chrome before chunking (2026-10-18)
+
+**Context.** Every RBI notification page appends an archive tree and inline stylesheet fragments
+after the signed text of the circular. Extracting the page's main container kept them, because they
+sit inside the same container as the body.
+
+**Decision.** `parse_document` truncates the body at the first chrome marker: a year followed by
+`All Months`, `/*added by ni*/`, `DateSettree`, or `.accordion`.
+
+**Why.** Measured on the captured corpus: 207 chunks before the cut, 154 after, with the same 25
+documents and zero parse failures. About a quarter of the corpus was navigation markup, and it
+competed directly with real provisions in vector search. It also inflated the chunk count into a
+misleading measure of corpus size.
+
+**Rejected.** Tightening the container selector, which cannot separate the tree from the body
+because both live in one container; and leaving the markup in place, on the grounds that a retriever
+should learn to ignore it. It should not have to, and the retrieved chunks were unreadable.
+
+**Cost if wrong.** A genuine notification body containing one of those marker strings would be
+truncated early and its tail lost. No RBI circular body uses them; `tests/test_rbi_parse.py` asserts
+the cut on the captured fixture, and the parse-failure count on the full corpus is zero.
+
+## D-017 — A chunk carries a document-level citation string (2026-10-18)
+
+**Context.** The inspector and the candidate sheet both read `citation` from chunk metadata. Nothing
+produced one: `parse_document` emitted `published` and `circular` only, so every citation rendered
+empty.
+
+**Decision.** `parse_document` adds `citation` to document metadata as `<circular> <title>`, which
+chunks inherit.
+
+**Why.** A retrieved chunk has to be citable to a human, and a golden-set label has to be readable as
+a document rather than a bare id. The value is composed at parse time from fields already extracted,
+so it costs nothing downstream.
+
+**Rejected.** Composing the citation in the inspector, which would leave every other consumer
+without one; and a provision-level citation, which the parser does not yet know how to extract.
+
+**Cost if wrong.** The citation identifies the document, not the clause, so it does not tell a reader
+which part of the circular a chunk came from. Provision-level citation is the upgrade path.
+
+## D-018 — Unanswerable questions are aggregated, and the cap is stated (2026-10-18)
+
+**Context.** Two of the twenty golden questions are unanswerable by design and have no relevant
+chunk, so they score zero on every retrieval metric. The evaluation aggregates over all twenty.
+
+**Decision.** Keep them in the aggregate for this milestone, and state plainly in `README.md` and
+`data/golden/README.md` that recall cannot therefore exceed 0.90 on this set.
+
+**Why.** The category mix is what the design asks for, and there is no abstention mechanism yet, so
+there is nothing else to score an unanswerable question against. Reporting one aggregate with a
+stated ceiling is honest; quietly dropping the questions would hide a real property of the set.
+
+**Rejected.** Excluding unanswerable questions from the aggregate; and per-category reporting in this
+milestone, which is more report surface than the baseline needs.
+
+**Cost if wrong.** The headline figures understate retrieval quality on answerable questions by up to
+0.10. A reader who misses the caveat reads the baseline as worse than it is. Per-category reporting
+and abstention both arrive with answer generation.

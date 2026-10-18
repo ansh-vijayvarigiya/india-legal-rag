@@ -43,3 +43,25 @@ lexical and hybrid comparisons are also unbuilt.
 **Next shape change expected.** Plan B adds the answering layer: a model client, caching, grounded
 answers with clause citations, refusal behaviour, and a calibrated judge for faithfulness and
 correctness. That is when a model first enters the runtime.
+
+---
+
+## 2026-10-18 — Corpus contracted to real circular text
+
+**Branch:** `plan-a-baseline`. Decisions D-016, D-017.
+
+**What changed.** The parser now cuts the notification page's trailing archive tree and stylesheet
+fragments, and stamps a document-level `citation` onto each chunk's metadata. The corpus went from
+207 chunks to 154 chunks over the same 25 documents, none of them newly failing to parse.
+
+**Why it is a shape change.** The first corpus was roughly a quarter navigation markup, and that
+markup was indexed and retrieved on equal terms with provisions. Every retrieval number before this
+change was measured against a corpus that was partly not a corpus, and the chunk count was not a
+meaningful size measure. Chunk ids after the first chunk are unaffected only where the cut fell past
+them; a re-ingest was required and the golden set was labelled against the corrected corpus.
+
+**Now checkable that was not before.** A retrieved result can be cited to a human as a document, so
+the inspector shows something meaningful and a golden label can be read back as a document.
+
+**Still weak.** The cut is marker-based rather than structural, and citations are document-level
+rather than provision-level.

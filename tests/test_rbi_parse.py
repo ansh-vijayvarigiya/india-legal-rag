@@ -24,6 +24,15 @@ def test_parse_document_extracts_body_text():
     assert len(doc.text) > 200
     assert doc.metadata["published"] == "2026-10-12"
     assert doc.metadata["circular"] == "RBI/2026-27/293"
+    assert doc.metadata["citation"] == (
+        "RBI/2026-27/293 Risk Management and Inter-Bank Dealings"
+    )
+
+
+def test_parse_document_drops_trailing_site_chrome():
+    doc = parse_document(REF, FIXTURE.read_text(encoding="utf-8"))
+    assert "All Months" not in doc.text
+    assert "DateSettree" not in doc.text
 
 
 def test_parse_document_rejects_unrecognised_page():

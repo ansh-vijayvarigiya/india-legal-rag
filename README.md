@@ -10,8 +10,10 @@ human-checkable chunk-level labels. The evaluation report is committed next to
 the code, and re-running the evaluation rewrites it, so a change that helps and a
 change that hurts are both visible in the diff.
 
-This milestone is the retrieval baseline. There is no answer generation, no
-citation formatting and no refusal yet; those are the next milestone.
+Milestone 1 is the retrieval baseline: corpus, embeddings, vector search, an
+evaluation harness and an inspection tool. Milestone 2 adds answers written from
+the retrieved passages — with citations, and a refusal when the corpus cannot
+answer. Grading those answers is the step after that.
 
 ---
 
@@ -25,6 +27,7 @@ citation formatting and no refusal yet; those are the next milestone.
 - [The evaluation harness](#the-evaluation-harness)
 - [The golden set](#the-golden-set)
 - [Reading the numbers](#reading-the-numbers)
+- [Asking questions](#asking-questions)
 - [The retrieval inspector](#the-retrieval-inspector)
 - [Configuration](#configuration)
 - [Failure behaviour](#failure-behaviour)
@@ -62,8 +65,9 @@ The interesting part is therefore the evaluation layer:
 
 | milestone | scope | state |
 | --- | --- | --- |
-| 1 | corpus, dense retrieval baseline, evaluation harness, inspector | **this milestone** |
-| 2 | answer generation, citations, refusal, model-judge calibration | not started |
+| 1 | corpus, dense retrieval baseline, evaluation harness, inspector | done |
+| 2 | answer generation, citations, refusal | answers built; grading next |
+| 3 | model-judge calibration of the generated answers | not started |
 
 ### What the system does today
 
@@ -76,9 +80,14 @@ The interesting part is therefore the evaluation layer:
 5. Stores them in a local on-disk Qdrant collection.
 6. Answers a query with the top-k most similar chunks, each with a score and a
    citation.
-7. Scores that retrieval against 20 labelled questions and writes `results.md`.
+7. Optionally asks a language model to answer the question from those passages
+   in plain English, citing the passages it used, and refusing when they do not
+   contain the answer.
+8. Scores that retrieval against 20 labelled questions and writes `results.md`.
 
-No API key is required and nothing is sent anywhere at runtime.
+Steps 1 to 6 need no account, and nothing leaves the machine. Step 7 is the only
+one that calls out: it sends your question and the retrieved passages, and
+nothing else.
 
 ---
 
@@ -146,6 +155,9 @@ make test-all         # everything, including the embedding tests
 
 On Windows another Python version may also be installed, so pass the interpreter
 explicitly: `make eval PYTHON=.venv/Scripts/python.exe`.
+
+Written answers additionally need a free AI key — see
+[Asking questions](#asking-questions). Everything else works without one.
 
 **Note where the time goes.** Ingest is cheap: it parses and chunks text and
 writes JSONL, so it finishes in seconds and downloads nothing. The slow part is
@@ -346,7 +358,7 @@ paragraph. That is the entire point of the repository.
 ### What CI runs
 
 `.github/workflows/ci.yml` runs on Python 3.11 on Linux, installs the package
-and runs `pytest -m "not slow"`, which is **72 of the 75 tests**. Only the three
+and runs `pytest -m "not slow"`, which is **96 of the 99 tests**. Only the three
 embedding tests are excluded, and they are excluded for the model download, not
 for the logic.
 
@@ -359,6 +371,7 @@ retrieval change is proven.
 ### Tests
 
 ```
+tests/test_answer.py            prompt building, refusal, citation parsing
 tests/test_config.py            settings and env overrides
 tests/test_normalize.py         text normalisation
 tests/test_models.py            Document, Chunk, Retrieved
@@ -495,16 +508,70 @@ What this actually says:
 
 ---
 
+## Asking questions
+
+The first tab takes a question and returns an answer written from the retrieved
+passages, with those passages numbered underneath so that the `[1]` markers in
+the answer point at something checkable.
+
+Answers need a free key. Groq is the default; Google AI Studio works too, since
+both speak the same OpenAI-compatible interface.
+
+1. Sign in at <https://console.groq.com/keys> and create a key.
+2. Put it in a file called `.env` in the project root:
+
+```
+LEGALRAG_LLM_API_KEY=gsk_your_key_here
+```
+
+`.env` is git-ignored. Without a key the app still runs: retrieval, the
+evaluation and the Passages tab all work, and the Answer tab says what is missing
+rather than failing.
+
+### What the model is told
+
+The prompt is the safety mechanism, so it is worth stating plainly. The model is
+required to:
+
+- answer **only** from the numbered passages it is handed;
+- use nothing it knows from training, and not fill gaps with plausible detail;
+- reply "I could not find this in the circulars provided" when the passages do
+  not contain the answer, rather than guessing;
+- mark the passages it relied on;
+- answer in two or three sentences, quoting exact figures, rates and dates;
+- give no legal advice and no recommendation about what the reader should do.
+
+Asked about GST rates or the Income-tax Act, neither of which is in this corpus,
+it refuses. Both `unanswerable` questions in the golden set exercise that path,
+and the refusal was verified against the live model.
+
+### Two costs worth knowing
+
+**Rate limits.** The free plan allows roughly 8,000 tokens a minute, and five
+whole passages is about a third of that, so expect around three questions a
+minute. Asking faster returns a message telling you to wait twenty seconds, with
+the retrieved passages still displayed, because displaying those costs nothing.
+`MAX_PASSAGES` and `MAX_REPLY_TOKENS` in `answer.py` are the dials, and the
+comment above them explains why five is the number.
+
+**It can be wrong.** An answer is a summary of what retrieval found, not an
+authority. The passages are numbered beneath it so a questionable answer can be
+checked against its source, and the citation markers say which source to check.
+Nothing scores the answers yet; that is the next step.
+
+---
+
 ## The retrieval inspector
 
 ```bash
 .venv\Scripts\python.exe -m legalrag.inspector
 ```
 
-A Streamlit page at <http://localhost:8501>. It shows the indexed chunk count in
-the sidebar, takes a query and a result count (1–50, default 10), and prints the
-ranked results with score, chunk id, citation and character count, with the full
-chunk text in an expander under each row.
+A Streamlit page at <http://localhost:8501>, with two tabs over the same index.
+**Answer** takes a question, offers four clickable examples drawn from the golden
+set, and shows the written answer with its numbered sources. **Passages** is the
+raw ranked list: score, chunk id, citation and character count, with the full
+chunk text in an expander under each row, and a result count from 1 to 50.
 
 It is a **diagnostic tool, not a product surface**: it exists so retrieval
 quality can be judged by eye while retrieval is being changed. A product surface
@@ -532,6 +599,15 @@ Settings are `LEGALRAG_`-prefixed environment variables (`legalrag.config`):
 | `LEGALRAG_QDRANT_PATH` | `data/qdrant` | Qdrant storage directory |
 | `LEGALRAG_EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | sentence-transformers model |
 | `LEGALRAG_COLLECTION` | `chunks-bge-small` | Qdrant collection name |
+| `LEGALRAG_LLM_API_KEY` | *(empty)* | the AI key. Empty means no written answers; retrieval still works |
+| `LEGALRAG_LLM_BASE_URL` | `https://api.groq.com/openai/v1` | any OpenAI-compatible chat endpoint |
+| `LEGALRAG_LLM_MODEL` | `openai/gpt-oss-120b` | the model that writes answers |
+| `LEGALRAG_JUDGE_MODEL` | `qwen/qwen3.8-27b` | the model that grades them |
+
+Values can come from the environment or from a `.env` file in the project root,
+which is git-ignored and is the intended place for the key. Environment variables
+win over the file. The key is held as a `SecretStr`, so it cannot be printed by
+an accident.
 
 **One wart worth knowing:** `qdrant_path` does not follow `data_dir`. Overriding
 only `LEGALRAG_DATA_DIR` sends the index to a relative `./data/qdrant`, not to
@@ -556,6 +632,10 @@ message on stderr:
 | ingest produced no chunks at all | `error: no chunks were produced` |
 | `k_max` below the deepest reported k | `ValueError` naming both numbers |
 | the index holds fewer chunks than the store | `error: indexed N of M chunks` |
+| no AI key configured | answers are off: the Answer tab says so, and the passages still show |
+| the key is rejected, or the provider is unreachable | the provider's message is shown, and the passages still show |
+| the free-tier quota is spent | a plain-language message saying to wait about twenty seconds |
+| the reply was cut off at the token limit | an error rather than a half sentence that reads as a finished one |
 
 An empty golden set is an error rather than an all-zero report, and an all-zero
 report is the reason why: zeros look like a measurement.
@@ -602,6 +682,7 @@ src/legalrag/
   retrieve.py            Retriever protocol, DenseRetriever
   golden.py              golden set schema and loader
   golden_candidates.py   reproducible candidate sheets for question proposals
+  answer.py              prompt, refusal, citation parsing, chat client
   eval/
     metrics.py           recall, precision, MRR, nDCG
     runner.py            run_eval, golden-vs-corpus validation
@@ -617,7 +698,7 @@ data/
   documents/             generated: documents.jsonl
   qdrant/                generated: local Qdrant storage
 
-tests/                   75 tests
+tests/                   99 tests
 docs/                    decisions, changelog, glossary, troubleshooting
 docs/diagrams/           5 architecture diagrams (HTML, self-contained)
 docs/superpowers/        design spec and the task-by-task plan
@@ -635,8 +716,8 @@ are committed on purpose.
 ## Development
 
 ```bash
-make test        # pytest -m "not slow"  — 72 tests, no model download
-make test-all    # pytest                — 75 tests, downloads the model
+make test        # pytest -m "not slow"  — 96 tests, no model download
+make test-all    # pytest                — 99 tests, downloads the model
 ```
 
 The suite takes about a minute because the CLI tests embed real text with the
@@ -692,8 +773,11 @@ Stated plainly, because a report is only as honest as its list of caveats.
 
 **Scope**
 
-- Retrieval only. No generated answers, no answer-level citations, no refusal,
-  and therefore no way to score abstention.
+- Answers are generated by a model and can be wrong in ways retrieval metrics
+  cannot see. The citations, the refusal instruction and the grader (next) are
+  the only defences, and none of them are a guarantee.
+- No answer-level evaluation yet, so nothing scores the generated answers. Only
+  retrieval is measured.
 - RBI notifications only. Nothing from CBIC, India Code, SEBI or the Income Tax
   Department, so nothing outside this corpus is answerable.
 - English only. Hindi and regional-language content is out of scope.
@@ -740,8 +824,10 @@ Ordered by what would most improve the numbers, not by what is most familiar.
 5. **Query transformation** — acronym expansion and citation normalisation.
 6. **More corpus**, especially a superseded circular, which is what makes the
    temporal questions a real test rather than a lucky one.
-7. **Answer generation with citations and refusal**, then a model-judge
-   calibration against the retrieval labels — milestone 2.
+7. **The answer grader.** A second model scores each generated answer against
+   the passages it cited, so answer quality gets a number instead of an opinion.
+   This is the next step, and it is what makes the answer layer part of the
+   evaluation rather than a decoration on top of it.
 8. **Unanswerable questions reported separately**, once there is an abstention
    mechanism to score.
 

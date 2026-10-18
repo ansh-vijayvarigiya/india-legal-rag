@@ -1,0 +1,14 @@
+# Retrieval golden set, milestone 1.
+#
+# A YAML list of mappings. Every reported retrieval number is computed against
+# this file, so a wrong label invalidates the report rather than the code.
+#
+#   qid                 unique id, for example q001
+#   question            the question as a user would type it
+#   relevant_chunk_ids  chunk ids that contain the answer; [] when unanswerable
+#   category            one of: single_clause, multi_clause, cross_document,
+#                       temporal, unanswerable
+#   answerable          true when the corpus can answer it
+#   gold_answer         reference answer for the human check; optional
+#
+# Filled in by Task 15. The loader returns [] for this comment-only file.

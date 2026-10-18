@@ -9,6 +9,158 @@
 #   category            one of: single_clause, multi_clause, cross_document,
 #                       temporal, unanswerable
 #   answerable          true when the corpus can answer it
-#   gold_answer         reference answer for the human check; optional
+#   gold_answer         reference answer; omitted for unanswerable questions
 #
-# Filled in by Task 15. The loader returns [] for this comment-only file.
+# Generated with language-model assistance against the ingested corpus, then
+# checked so that each labelled chunk demonstrably contains the answer. See
+# README.md in this directory for the annotation rules.
+#
+# Corpus: 25 RBI notifications captured on 2026-10-18, 154 chunks.
+
+# --- single_clause: the answer is in one chunk -----------------------------
+
+- qid: q001
+  question: What is the minimum proportion of the required cash reserve ratio that scheduled banks must maintain on all days of the reporting fortnight?
+  relevant_chunk_ids: ["rbi:13736#0000"]
+  category: single_clause
+  answerable: true
+  gold_answer: Not less than 90 per cent of the required CRR.
+
+- qid: q002
+  question: What is the revised Bank Rate announced in the Monetary Policy Statement of October 07, 2026, and by how much was it raised?
+  relevant_chunk_ids: ["rbi:13728#0000"]
+  category: single_clause
+  answerable: true
+  gold_answer: Revised upwards by 25 basis points from 5.50 per cent to 5.75 per cent, with immediate effect.
+
+- qid: q003
+  question: Which earlier circular does the October 01, 2026 circular on online submission of Form A2 refer to, and what must Authorised Dealers frame?
+  relevant_chunk_ids: ["rbi:13724#0000"]
+  category: single_clause
+  answerable: true
+  gold_answer: A.P. (DIR Series) Circular No. 12 dated July 03, 2024; Authorised Dealers must frame internal guidelines with the approval of their Board or a Board Committee.
+
+- qid: q004
+  question: Who may a bank's Board delegate the monitoring of the progress of cassette swap implementation in ATMs to?
+  relevant_chunk_ids: ["rbi:13717#0000"]
+  category: single_clause
+  answerable: true
+  gold_answer: A Committee of Executives of the bank.
+
+- qid: q005
+  question: Which provision of the Commercial Banks (Miscellaneous) Directions, 2025 does the amendment on deferment of option premium refer to?
+  relevant_chunk_ids: ["rbi:13731#0000"]
+  category: single_clause
+  answerable: true
+  gold_answer: Sub-section D of Chapter IV.
+
+- qid: q006
+  question: Which entity's entry was amended in the UNSC 1267/1989 ISIL (Da'esh) and Al-Qaida Sanctions List, and under what reference number is it listed?
+  relevant_chunk_ids: ["rbi:13715#0001"]
+  category: single_clause
+  answerable: true
+  gold_answer: KHATIBA JAMA`AT AL-TAWHID WAL-JIHAD (KTJ), listed as entity QDe.168.
+
+- qid: q007
+  question: What is the maximum number of records permitted for screen-based submission of the NRD-CSR return?
+  relevant_chunk_ids: ["rbi:13725#0001"]
+  category: single_clause
+  answerable: true
+  gold_answer: 2000 records.
+
+- qid: q008
+  question: Under the Differential Rate of Interest Scheme, how much finance do banks provide and at what rate of interest?
+  relevant_chunk_ids: ["rbi:13716#0003"]
+  category: single_clause
+  answerable: true
+  gold_answer: Up to 15,000 rupees at a concessional rate of 4 per cent per annum, for productive and gainful activities for weaker sections.
+
+- qid: q009
+  question: For what tear dimensions must a note be sorted as unfit by a note sorting machine?
+  relevant_chunk_ids: ["rbi:13723#0004"]
+  category: single_clause
+  answerable: true
+  gold_answer: Vertical 4 mm width and 8 mm length; horizontal 4 mm width and 15 mm length; diagonal 4 mm width and 18 mm length.
+
+- qid: q010
+  question: What must note sorting machines do with notes of a series that the Reserve Bank has decided to phase out?
+  relevant_chunk_ids: ["rbi:13723#0002"]
+  category: single_clause
+  answerable: true
+  gold_answer: Sort all such phased-out notes as unfit, irrespective of their physical condition.
+
+# --- multi_clause: two chunks of the same document are both needed ---------
+
+- qid: q011
+  question: When must a repaired note be sorted as suspect or reject, and by what date must note sorting machines that have been discontinued from production be phased out?
+  relevant_chunk_ids: ["rbi:13723#0005", "rbi:13723#0006"]
+  category: multi_clause
+  answerable: true
+  gold_answer: Repairs covering an area greater than 100 mm2, or where the extraneous matter is 50 micrometres or more thick or 10 mm or more wide or long; and discontinued NSM models must be phased out on or before June 30, 2027.
+
+- qid: q012
+  question: What monitoring arrangement must a bank's Head Office put in place for the flow of credit to SC/ST beneficiaries, and how must advances to SCs and STs be reported?
+  relevant_chunk_ids: ["rbi:13716#0004", "rbi:13716#0005"]
+  category: multi_clause
+  answerable: true
+  gold_answer: A special cell at the Head Office to monitor credit flow, collect and consolidate data from branches and submit returns to the Reserve Bank and the Government; and advances are to be reported as prescribed in the Master Direction on Priority Sector Lending within the stipulated time frames.
+
+- qid: q013
+  question: In the Commercial Banks Prudential Norms on Capital Adequacy (Twelfth Amendment) Directions, 2026, which two paragraphs of the 2025 Directions were amended, and what does the amended text say an incurred CVA loss is based on?
+  relevant_chunk_ids: ["rbi:13732#0000", "rbi:13732#0001"]
+  category: multi_clause
+  answerable: true
+  gold_answer: Paragraph 85(6)(i) on the requirement for clearing member banks to obtain legal opinion, and paragraph 213(2)(iv)(b); the CVA loss is the CVA recognised by the bank as an incurred write-down, taken from the amount recognised in its financial statements.
+
+- qid: q014
+  question: Under the October 10, 2026 Risk Management and Inter-Bank Dealings circular, what restriction applies to rebooking a cancelled foreign exchange derivative contract involving INR, and what must an Authorised Dealer obtain when offering such a contract to hedge a contracted exposure?
+  relevant_chunk_ids: ["rbi:13737#0000", "rbi:13737#0001"]
+  category: multi_clause
+  answerable: true
+  gold_answer: An Authorised Dealer shall not permit users to rebook any cancelled foreign exchange derivative contract involving INR; and must obtain and retain an undertaking from the user that the same underlying exposure has not been hedged with any other Authorised Dealer.
+
+# --- cross_document: the answer spans more than one document ---------------
+
+- qid: q015
+  question: Following the Monetary Policy Statement of October 07, 2026, what changes were announced to the policy repo rate under the LAF, to the Bank Rate, and to the Standing Liquidity Facility for Primary Dealers?
+  relevant_chunk_ids: ["rbi:13726#0000", "rbi:13727#0000", "rbi:13728#0000"]
+  category: cross_document
+  answerable: true
+  gold_answer: The policy repo rate under the LAF was increased by 25 basis points from 5.25 per cent to 5.50 per cent; the Bank Rate was revised upwards by 25 basis points from 5.50 per cent to 5.75 per cent; and the Standing Liquidity Facility for Primary Dealers was revised accordingly.
+
+- qid: q016
+  question: Which amendment directions issued on October 07, 2026 change the requirement for clearing member banks or financial institutions to obtain a legal opinion, and which categories of entities do they cover?
+  relevant_chunk_ids: ["rbi:13732#0000", "rbi:13733#0000", "rbi:13734#0000", "rbi:13735#0000"]
+  category: cross_document
+  answerable: true
+  gold_answer: Commercial banks (Twelfth Amendment, paragraph 85(6)(i)), Small Finance Banks (Sixth Amendment, paragraph 75(5)(i)), Payments Banks (Third Amendment, paragraph 52(5)(i)) and All India Financial Institutions (Fifth Amendment, paragraph 77(6)(i)).
+
+# --- temporal: the answer depends on which circular is current -------------
+
+- qid: q017
+  question: As at the latest circular on Risk Management and Inter-Bank Dealings, dated October 12, 2026, for what purpose may Authorised Dealers offer non-deliverable derivative contracts involving INR to a non-resident user?
+  relevant_chunk_ids: ["rbi:13739#0000"]
+  category: temporal
+  answerable: true
+  gold_answer: Only for the purpose of hedging.
+
+- qid: q018
+  question: What reserve must Authorised Dealers maintain for foreign exchange derivative contracts involving INR, and above what notional value does it apply?
+  relevant_chunk_ids: ["rbi:13738#0000"]
+  category: temporal
+  answerable: true
+  gold_answer: A Foreign Exchange Risk Reserve, applicable to contracts involving INR of notional value exceeding USD two million equivalent undertaken to hedge current account transactions.
+
+# --- unanswerable: the corpus cannot answer these --------------------------
+
+- qid: q019
+  question: What is the GST rate applicable to the supply of works contract services by a government authority in India?
+  relevant_chunk_ids: []
+  category: unanswerable
+  answerable: false
+
+- qid: q020
+  question: What is the maximum deduction allowed under Section 80C of the Income-tax Act, 1961 for an individual assessee?
+  relevant_chunk_ids: []
+  category: unanswerable
+  answerable: false

@@ -12,9 +12,11 @@ import pytest
 from legalrag.answer import (
     LLMError,
     MAX_PASSAGES,
+    MAX_REPLY_TOKENS,
     OpenAIChatClient,
     answer,
     build_messages,
+    is_rate_limit,
     render_context,
 )
 from legalrag.models import Chunk, Retrieved
@@ -128,6 +130,11 @@ def _client(reply: httpx.Response) -> OpenAIChatClient:
     )
 
 
+def test_rate_limits_are_told_apart_from_other_failures():
+    assert is_rate_limit(LLMError("the model returned 429: Rate limit reached"))
+    assert not is_rate_limit(LLMError("the model returned 401: invalid api key"))
+
+
 def test_only_the_top_passages_are_sent():
     """Passage count is a token budget: the free tier allows ~8000 tokens a minute."""
     client = FakeClient()
@@ -145,6 +152,12 @@ def test_enough_passages_are_sent_to_reach_a_second_chunk():
     """q014's second labelled chunk sits at rank 4, so a shorter prompt answers
     that question with a refusal it did not have to give."""
     assert MAX_PASSAGES >= 5
+
+
+def test_a_caller_can_turn_reasoning_off():
+    """Qwen 3.8 accepts `none`, which emits no reasoning tokens at all. The
+    answerer cannot use it, because gpt-oss does not accept `none`."""
+    assert _sent_body(reasoning_effort="none")["reasoning_effort"] == "none"
 
 
 def test_the_request_asks_for_light_reasoning():
@@ -165,6 +178,37 @@ def test_the_request_asks_for_light_reasoning():
     )
     client.complete([{"role": "user", "content": "hi"}])
     assert seen["reasoning_effort"] == "low"
+
+
+def _sent_body(**kwargs) -> dict:
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]},
+        )
+
+    client = OpenAIChatClient(
+        "https://llm.test/v1",
+        "k",
+        "m",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        **kwargs,
+    )
+    client.complete([{"role": "user", "content": "hi"}])
+    return seen
+
+
+def test_the_token_budget_defaults_to_the_answer_budget():
+    assert _sent_body()["max_tokens"] == MAX_REPLY_TOKENS
+
+
+def test_a_caller_can_raise_the_token_budget():
+    """The judge's hidden reasoning eats the budget before its JSON arrives, so
+    it needs more room than an answer does."""
+    assert _sent_body(max_tokens=1500)["max_tokens"] == 1500
 
 
 def test_a_reply_cut_off_at_the_token_limit_is_an_error_not_an_answer():

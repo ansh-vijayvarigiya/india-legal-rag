@@ -39,10 +39,13 @@ therefore a retrieval aid over convenience copies, not legal advice, and the REA
 | Term | Meaning |
 |---|---|
 | **Ablation** | Changing or removing one component to measure what it contributes. The results table is a series of ablations. |
+| **Answer (generated)** | Prose written by a model from the retrieved passages, carrying citation markers. Distinct from the passages themselves, which are retrieved rather than written. Answers are graded into `answers.md`; retrieval is scored into `results.md`. |
+| **Backed up** | The grader's name for whether every factual claim in an answer is supported by the passages it was given. Kept separate from whether the answer is right, because an invented figure and a wrong answer are different failures and one must not average away the other. |
 | **BM25** | A lexical ranking function based on term frequency and inverse document frequency, with document-length normalisation. Strong on exact terms. |
 | **bge** | BAAI General Embedding, a family of open embedding and reranking models used locally here. |
 | **Chunk** | An indexed unit of text. The unit of retrieval, and the unit a citation points at. |
 | **Chunk id** | Stable identifier for a chunk, derived from document id and ordinal. Golden-set labels reference these. |
+| **Citation marker** | The `[1]` written inside an answer, resolving to the first passage the answer was written from. Models write these in different shapes, including full-width brackets, so they are normalised before being parsed. |
 | **Cross-encoder** | A model that scores a query and document together, so it sees both at once. More accurate and far slower than embedding similarity, which is why it reranks a shortlist. |
 | **Dense retrieval** | Finding documents by nearest neighbours in embedding space. Good at meaning, weak on exact identifiers. |
 | **Embedding** | A fixed-length numeric vector representing text, positioned so similar meanings land close together. |

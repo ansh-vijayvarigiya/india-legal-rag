@@ -66,3 +66,36 @@ the inspector shows something meaningful and a golden label can be read back as 
 
 **Still weak.** The cut is marker-based rather than structural, and citations are document-level
 rather than provision-level.
+
+---
+
+## 2026-10-18 — A model enters the runtime: answers, and grading of those answers
+
+**Branch:** `main`. Decisions D-020, D-021, D-022.
+
+**What changed.** Two new modules and one new dependency class. `legalrag.answer` sends a question
+and the top five retrieved passages to a hosted model and returns prose carrying citation markers
+that resolve back to chunk ids. `legalrag.judge` asks a *different* hosted model to mark every answer
+on two independent axes and writes `answers.md` beside `results.md`. The inspector grew a second tab,
+and `Settings` gained four fields for the endpoint, the two models and the key.
+
+**Why it is a shape change.** This is the first time the system reaches a network at runtime, the
+first time it produces something a reader consumes as prose instead of as a ranked list, and the first
+time an evaluation measures anything other than retrieval. It also introduces a trust boundary the
+previous shape did not have: the corpus used to be the only source of text, and now a model authors
+text that a reader may believe.
+
+**What did not move.** The retrieval path and its metrics are untouched, because the model is not in
+it. `results.md` still reproduces byte-identically, and the answer layer is additive to the harness
+rather than a rewrite of it. The API key did not move into the repository either: it lives in a
+git-ignored `.env`, settings hold it as a `SecretStr`, and a test asserts that a key cannot appear in
+an error message.
+
+**Now checkable that was not before.** A generated answer carries a number and a reason, so a
+regression in answer quality is visible in a diff the same way a retrieval regression is. Previously
+the only way to know an answer had got worse was to read one.
+
+**Still weak.** Answers cost time and money, and a free plan permits roughly three questions a minute.
+The grader is itself a model, so answer quality is an opinion with a reason attached rather than a
+measurement, and it inherits some of the writer's blind spots. Refusal is a prompt instruction rather
+than a calibrated confidence threshold, so it is a behaviour that can be observed but not tuned.

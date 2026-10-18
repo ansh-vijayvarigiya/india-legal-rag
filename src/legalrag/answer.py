@@ -66,11 +66,19 @@ def _normalise_markers(text: str) -> str:
 MAX_PASSAGES = 5
 # Room for an explanation of about a hundred words, a short bullet list, and the
 # model's own thinking. The finish_reason check catches it if this is too small.
+# This is the default for every client. `legalrag.judge` raises it, because a
+# judge's hidden reasoning runs longer than the JSON verdict it finally writes.
 MAX_REPLY_TOKENS = 700
 
 
 class LLMError(RuntimeError):
     """The model could not be reached, or replied in a shape we cannot use."""
+
+
+def is_rate_limit(error: Exception) -> bool:
+    """Free plans meter tokens per minute and say so in their own words."""
+    text = str(error).lower()
+    return "429" in text or "rate limit" in text
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,10 +173,14 @@ class OpenAIChatClient:
         *,
         http_client: httpx.Client | None = None,
         timeout: float = 60.0,
+        max_tokens: int = MAX_REPLY_TOKENS,
+        reasoning_effort: str = "low",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
+        self.max_tokens = max_tokens
+        self.reasoning_effort = reasoning_effort
         self._client = http_client or httpx.Client(timeout=timeout)
 
     def complete(self, messages: list[dict]) -> str:
@@ -179,11 +191,13 @@ class OpenAIChatClient:
                 "model": self.model,
                 "messages": messages,
                 "temperature": 0,
-                "max_tokens": MAX_REPLY_TOKENS,
+                "max_tokens": self.max_tokens,
                 # gpt-oss spends reply tokens on hidden reasoning. Left at the
                 # default, the thinking eats the answer's budget and the reply
-                # arrives cut off.
-                "reasoning_effort": "low",
+                # arrives cut off. Qwen accepts `none` here and the judge uses
+                # it: on the free tier hidden reasoning counts against an output
+                # token meter of a thousand a minute.
+                "reasoning_effort": self.reasoning_effort,
             },
         )
         if response.status_code != 200:

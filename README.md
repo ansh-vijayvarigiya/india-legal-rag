@@ -28,6 +28,7 @@ answer. Grading those answers is the step after that.
 - [The golden set](#the-golden-set)
 - [Reading the numbers](#reading-the-numbers)
 - [Asking questions](#asking-questions)
+- [Grading the answers](#grading-the-answers)
 - [The retrieval inspector](#the-retrieval-inspector)
 - [Configuration](#configuration)
 - [Failure behaviour](#failure-behaviour)
@@ -59,15 +60,19 @@ The interesting part is therefore the evaluation layer:
   lawyer, so maintaining it does not require domain expertise;
 - a metric harness that fails loudly rather than reporting a number it cannot
   justify;
-- a versioned report (`results.md`) that is the artifact of record;
+- a versioned report that is the artifact of record for each layer —
+  `results.md` for retrieval, `answers.md` for the answers written on top of it;
 - a committed corpus snapshot, so the report cannot silently drift from the
-  data it describes.
+  data it describes;
+- an answer grader that is a *different* model from the one it grades, so the
+  number on answer quality is a second opinion rather than self-assessment.
 
 | milestone | scope | state |
 | --- | --- | --- |
 | 1 | corpus, dense retrieval baseline, evaluation harness, inspector | done |
-| 2 | answer generation, citations, refusal | answers built; grading next |
-| 3 | model-judge calibration of the generated answers | not started |
+| 2 | answer generation, citations, refusal | done |
+| 3 | model-judge calibration of the generated answers | done |
+| 4 | more corpus, structure-aware chunking, hybrid retrieval, reranking | roadmap |
 
 ### What the system does today
 
@@ -84,10 +89,12 @@ The interesting part is therefore the evaluation layer:
    in plain English, citing the passages it used, and refusing when they do not
    contain the answer.
 8. Scores that retrieval against 20 labelled questions and writes `results.md`.
+9. Grades every answer those passages produced against the passages themselves,
+   using a second and different model, and writes `answers.md`.
 
-Steps 1 to 6 need no account, and nothing leaves the machine. Step 7 is the only
-one that calls out: it sends your question and the retrieved passages, and
-nothing else.
+Steps 1 to 6 need no account, and nothing leaves the machine. Steps 7 and 9 are
+the only ones that call out: step 7 sends your question and the retrieved
+passages, and nothing else.
 
 ---
 
@@ -113,6 +120,13 @@ retriever:**
   to score against.
 - One answerable question is not retrieved at all, at any depth up to 20
   (`q008`). See [Reading the numbers](#reading-the-numbers).
+
+On top of that retrieval, `make judge` grades the plain-English answers a model
+writes from those passages, using a different model, and writes `answers.md`. It
+reports **16 of 18 answerable questions answered correctly, 2 of 2 unanswerable
+questions refused, and no answer stating anything the passages do not support** —
+with the limits of that claim spelled out in
+[Grading the answers](#grading-the-answers).
 
 ---
 
@@ -148,6 +162,7 @@ The same commands through `make`:
 make ingest-offline   # offline corpus rebuild
 make ingest           # network corpus fetch
 make eval             # score and write results.md
+make judge            # grade the generated answers, write answers.md
 make inspect          # Streamlit inspector
 make test             # fast tests, no model download
 make test-all         # everything, including the embedding tests
@@ -358,7 +373,7 @@ paragraph. That is the entire point of the repository.
 ### What CI runs
 
 `.github/workflows/ci.yml` runs on Python 3.11 on Linux, installs the package
-and runs `pytest -m "not slow"`, which is **96 of the 99 tests**. Only the three
+and runs `pytest -m "not slow"`, which is **129 of the 132 tests**. Only the three
 embedding tests are excluded, and they are excluded for the model download, not
 for the logic.
 
@@ -372,6 +387,7 @@ retrieval change is proven.
 
 ```
 tests/test_answer.py            prompt building, refusal, citation parsing
+tests/test_judge.py             verdict parsing, counting, the report
 tests/test_config.py            settings and env overrides
 tests/test_normalize.py         text normalisation
 tests/test_models.py            Document, Chunk, Retrieved
@@ -538,7 +554,11 @@ required to:
 - reply "I could not find this in the circulars provided" when the passages do
   not contain the answer, rather than guessing;
 - mark the passages it relied on;
-- answer in two or three sentences, quoting exact figures, rates and dates;
+- write a short **explanation** rather than a one-line answer: the direct answer
+  first, then the figures, rates, dates, thresholds and conditions behind it, as
+  a short bullet list when there are several;
+- **expand every acronym on first use**, because the reader may not work in this
+  field;
 - give no legal advice and no recommendation about what the reader should do.
 
 Asked about GST rates or the Income-tax Act, neither of which is in this corpus,
@@ -552,12 +572,147 @@ whole passages is about a third of that, so expect around three questions a
 minute. Asking faster returns a message telling you to wait twenty seconds, with
 the retrieved passages still displayed, because displaying those costs nothing.
 `MAX_PASSAGES` and `MAX_REPLY_TOKENS` in `answer.py` are the dials, and the
-comment above them explains why five is the number.
+comment above them explains why five is the number. The judge has a separate and
+much tighter meter of its own; `JUDGE_MAX_TOKENS` and `JUDGE_REASONING` in
+`judge.py` are its dials, and
+[the section below](#the-judge-has-no-thinking-budget-and-it-shows) explains why
+they are set where they are.
 
 **It can be wrong.** An answer is a summary of what retrieval found, not an
 authority. The passages are numbered beneath it so a questionable answer can be
 checked against its source, and the citation markers say which source to check.
-Nothing scores the answers yet; that is the next step.
+The answers are graded separately — see
+[Grading the answers](#grading-the-answers).
+
+---
+
+## Grading the answers
+
+Retrieval has `results.md`. The answers have `answers.md`, written by `make judge`:
+
+```bash
+make judge          # all 20 questions, about ten minutes
+make judge LIMIT=3  # three questions, about a minute
+```
+
+A **different model** from the one that wrote the answers reads each question,
+the answer, and the passages the answer was written from, and returns two
+independent marks:
+
+| mark | the question it answers |
+| --- | --- |
+| `correct` | does the answer resolve what was asked? `yes` / `partly` / `no` |
+| `grounded` | is every claim in it supported by the passages? `yes` / `partly` / `no`, or `n/a` for a refusal |
+
+plus whether it refused, and one sentence naming what the marks are based on.
+
+Two marks rather than one score, deliberately: **a wrong answer and an invented
+fact are different failures**, and a single number would let one fabrication be
+averaged away by three correct sentences. In regulatory text the invented figure
+is the one that matters. The summary line keeps them apart:
+
+```
+N of M answerable questions answered correctly, P partly.
+R of S unanswerable questions correctly refused.
+Of J answers judged, K stated something the passages do not support
+and L were supported only in part.
+```
+
+Refusing is scored as **correct** for the two unanswerable questions, because
+refusing is the right behaviour when the corpus cannot answer. A harness that
+scored a refusal as a miss would be rewarding a guess.
+
+"Supported only in part" is reported next to the invented-claims count on
+purpose. A headline of zero unsupported answers while three were only partly
+supported reads as a clean bill of health, and it is not one.
+
+### The current run
+
+Twenty questions, twenty judged, nothing lost:
+
+```
+16 of 18 answerable questions answered correctly, 0 partly.
+2 of 2 unanswerable questions correctly refused.
+Of 20 answers judged, 0 stated something the passages do not support
+and 0 were supported only in part.
+```
+
+`q008` and `q013` are the two answerable questions that came back *not answered*,
+and both are retrieval limitations that the retrieval report already names. In
+`q008` retrieval found nothing that bears on the question. In `q013` the chunk
+that explains what an incurred CVA loss is based on sits at rank 15, outside the
+five passages that are sent. In both the answer refused rather than guess. That
+counts against it here, and it should: a refusal on a hard question is a poor
+result. A confident invention would be a worse one.
+
+Both unanswerable questions were refused, and the judge checked the refusal was
+earned rather than reflexive. Its reason for `q019` names the subjects of the
+passages it was given and points out that GST appears among none of them.
+
+The most useful row is `q013`, where the judge **disagrees with the answer**. It
+points out that the passages *do* name the two amended paragraphs,
+`85(6)(i)` and `213(2)(iv)(b)`, so the blanket refusal was not fully justified —
+the first half of the question could have been answered even though the second
+could not. That is a criticism of the answer rather than of retrieval, and it is
+exactly the kind of thing no retrieval metric can see.
+
+### Two things to know before comparing runs
+
+**A run is not reproducible.** Every run regenerates the answers, and a model at
+temperature zero is still not deterministic across runs, so two runs produce
+different text and occasionally different marks. `answers.md` is a record of one
+run, not a fixture. That is also why it will differ from yours.
+
+**A run is not cheap.** It costs around a hundred thousand tokens across the two
+models, and three or four runs in a day exhaust the free tier's daily allowance.
+`make judge LIMIT=5` is a fifth of that, and enough to see it work.
+
+### What the grader is not
+
+An AI grading an AI is a **second opinion, not proof**, and `answers.md` says so
+in its own words rather than burying it. It can be too generous, and it shares
+some blind spots with the model it is judging. Three things make it worth
+having anyway:
+
+- it is a **different model** from the writer, so the blind spots are not
+  identical;
+- it must write a **reason for every mark**;
+- every reason names specifics that can be **checked by hand**, against passages
+  committed to this repository.
+
+That last point is the real safeguard. The number is a pointer to rows worth
+reading, not a verdict to trust on its own.
+
+### The judge has no thinking budget, and it shows
+
+The free tier meters **output** tokens at a thousand a minute and refuses a
+request that goes over it. Hidden reasoning counts as output. That is the binding
+constraint on the judge, and it is why it runs with reasoning switched off.
+
+Two runs show what that costs. With the judge allowed to reason, it flagged three
+answers as **only partly supported** — including one that turned the circular's
+*"larger than the sizes indicated in Table 3"* into *"meets or exceeds"*. That
+run also lost questions: seven of twenty came back either cut off mid-verdict or
+refused outright by the meter. With reasoning off, all twenty questions were
+judged, and the same three answers were passed as fully supported.
+
+That is not a like-for-like experiment, because each run regenerates the answers,
+so the inputs were not identical. The direction is clear anyway:
+
+> **Zero unsupported claims is not evidence that none exist.** It is evidence
+> that none were found by a judge working without a thinking budget, on answers
+> written from passages committed to this repository — so the reasons can be
+> checked by hand, and a reader can decide for themselves.
+
+A paid tier is what would buy the judge that budget back. Until then the
+number is honest about its own depth, which is the most a free judge can be.
+
+### A question that was not judged
+
+If a call fails, that question is marked `not judged`, given its reason, and
+**excluded from the summary** rather than scored. A failure of this harness is
+not a failure of the answer, and counting it as one would make the numbers move
+for reasons that have nothing to do with quality.
 
 ---
 
@@ -636,6 +791,8 @@ message on stderr:
 | the key is rejected, or the provider is unreachable | the provider's message is shown, and the passages still show |
 | the free-tier quota is spent | a plain-language message saying to wait about twenty seconds |
 | the reply was cut off at the token limit | an error rather than a half sentence that reads as a finished one |
+| `make judge` is run with no key configured | it exits 1 before retrieving anything, because answers cannot be written without one |
+| `make judge` reports a question as `not judged` | that call failed after its one retry; the question is excluded from the summary, and its reason is in `answers.md` under that question |
 
 An empty golden set is an error rather than an all-zero report, and an all-zero
 report is the reason why: zeros look like a measurement.
@@ -683,6 +840,7 @@ src/legalrag/
   golden.py              golden set schema and loader
   golden_candidates.py   reproducible candidate sheets for question proposals
   answer.py              prompt, refusal, citation parsing, chat client
+  judge.py               answer grading, the verdict, the answers.md report
   eval/
     metrics.py           recall, precision, MRR, nDCG
     runner.py            run_eval, golden-vs-corpus validation
@@ -698,12 +856,13 @@ data/
   documents/             generated: documents.jsonl
   qdrant/                generated: local Qdrant storage
 
-tests/                   99 tests
+tests/                   132 tests
 docs/                    decisions, changelog, glossary, troubleshooting
 docs/diagrams/           5 architecture diagrams (HTML, self-contained)
 docs/superpowers/        design spec and the task-by-task plan
 
 results.md               the committed evaluation report
+answers.md               the committed answer-grading report
 Makefile                 test, test-all, ingest, ingest-offline, eval, inspect
 ```
 
@@ -717,7 +876,7 @@ are committed on purpose.
 
 ```bash
 make test        # pytest -m "not slow"  — 96 tests, no model download
-make test-all    # pytest                — 99 tests, downloads the model
+make test-all    # pytest                — 132 tests, downloads the model
 ```
 
 The suite takes about a minute because the CLI tests embed real text with the
@@ -774,10 +933,11 @@ Stated plainly, because a report is only as honest as its list of caveats.
 **Scope**
 
 - Answers are generated by a model and can be wrong in ways retrieval metrics
-  cannot see. The citations, the refusal instruction and the grader (next) are
-  the only defences, and none of them are a guarantee.
-- No answer-level evaluation yet, so nothing scores the generated answers. Only
-  retrieval is measured.
+  cannot see. The citations, the refusal instruction and the grader are the only
+  defences, and none of them is a guarantee.
+- The grader is a model too, so answer quality is a second model's opinion rather
+  than ground truth. It is a different model from the writer, it must justify
+  every mark, and every justification is checkable by hand.
 - RBI notifications only. Nothing from CBIC, India Code, SEBI or the Income Tax
   Department, so nothing outside this corpus is answerable.
 - English only. Hindi and regional-language content is out of scope.
@@ -824,12 +984,16 @@ Ordered by what would most improve the numbers, not by what is most familiar.
 5. **Query transformation** — acronym expansion and citation normalisation.
 6. **More corpus**, especially a superseded circular, which is what makes the
    temporal questions a real test rather than a lucky one.
-7. **The answer grader.** A second model scores each generated answer against
-   the passages it cited, so answer quality gets a number instead of an opinion.
-   This is the next step, and it is what makes the answer layer part of the
-   evaluation rather than a decoration on top of it.
-8. **Unanswerable questions reported separately**, once there is an abstention
-   mechanism to score.
+7. **Calibrating the grader.** It exists and writes `answers.md`. What it cannot
+   yet say is how often it agrees with a person, because no answers have been
+   labelled by hand. That agreement number is what would turn the grader from a
+   second opinion into a measurement — together with a paid tier, which is what
+   would buy the judge back the reasoning tokens the free output meter takes
+   away.
+8. **Abstention as a tuned threshold.** Refusals are already scored separately in
+   `answers.md`, but refusing is still a prompt instruction rather than a
+   calibrated confidence. Scoring it makes it visible; it does not make it
+   tunable.
 
 Each step is expected to land as a new row in `results.md` with its delta
 committed next to the code that produced it.

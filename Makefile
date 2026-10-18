@@ -1,4 +1,4 @@
-.PHONY: test test-all ingest ingest-offline eval inspect
+.PHONY: test test-all ingest ingest-offline eval inspect judge
 
 # The interpreter to run everything with. Point it at the virtualenv on Windows:
 #   make eval PYTHON=.venv/Scripts/python.exe
@@ -24,3 +24,10 @@ eval:
 
 inspect:
 	$(PYTHON) -m legalrag.inspector
+
+# Grades the generated answers and writes answers.md. Slow: two model calls per
+# question, and the free tier meters tokens per minute. LIMIT=3 for a quick look:
+#   make judge LIMIT=3
+LIMIT ?=
+judge:
+	$(PYTHON) -m legalrag.judge $(if $(LIMIT),--limit $(LIMIT),)

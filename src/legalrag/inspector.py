@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from legalrag.answer import LLMError, MAX_PASSAGES, OpenAIChatClient, answer
+from legalrag.answer import LLMError, MAX_PASSAGES, OpenAIChatClient, answer, is_rate_limit
 from legalrag.config import Settings
 from legalrag.corpus import read_chunks
 from legalrag.embed import Embedder
@@ -61,14 +61,13 @@ def example_questions(golden_path: Path, n: int = EXAMPLE_COUNT) -> list[str]:
 
 def rate_limit_message(error: LLMError) -> str:
     """Say what to do about a spent free-tier quota, rather than quoting it."""
-    text = str(error)
-    if "429" in text or "rate limit" in text.lower():
+    if is_rate_limit(error):
         return (
             "The free AI plan allows only a few questions a minute, and that "
             "allowance is used up. Wait about twenty seconds and ask again. "
             "The passages below were already retrieved and cost nothing."
         )
-    return text
+    return str(error)
 
 
 def answer_client(settings: Settings) -> OpenAIChatClient | None:

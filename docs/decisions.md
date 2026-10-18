@@ -392,8 +392,8 @@ nor an error message can leak it.
 
 **Cost if wrong.** An external dependency, a per-question cost, and a new way to be wrong: the model
 can state something the corpus does not support. The mitigations are the citation markers, the refusal
-instruction, and the grader that is the next step. The retrieval metrics in `results.md` are unaffected
-either way, because the model is not in that path.
+instruction, and the grader in D-022. The retrieval metrics in `results.md` are unaffected either
+way, because the model is not in that path.
 
 ## D-021 - Five passages are sent, and the passage count is a token budget (2026-10-18)
 
@@ -419,3 +419,47 @@ answer, and the 200-character chunk overlap only partly covers the loss.
 **Cost if wrong.** A visitor who asks three questions inside a minute is rate-limited and gets a
 message instead of an answer. The app says what happened and still shows the passages, which cost
 nothing to display.
+
+## D-022 - Generated answers are graded by a second, different model (2026-10-18)
+
+**Context.** The retrieval metrics in `results.md` stop short of the thing a reader actually sees. An
+answer can be fluent, cite the right passage, and still be wrong or state a figure the passages never
+contained, and no retrieval metric can see the difference. The first live judge run found a case of
+exactly that: `q001` leads with the 90 percent figure while the same circular raises the requirement
+to 99 percent, so the judge marked it `partly` and named the passage in its reason. Whether the judge
+is right is arguable; that its reason can be checked by hand is the point.
+
+**Decision.** A second, different model (`LEGALRAG_JUDGE_MODEL`, default `qwen/qwen3.8-27b`) reads each
+question, the answer, and the passages the answer was written from, and returns a JSON verdict with
+two independent marks — whether the answer resolves the question, and whether every claim in it is
+supported by the passages — plus a refusal flag and a one-sentence reason. The run writes `answers.md`
+next to `results.md`, and `make judge` runs it.
+
+**Why.** Two marks instead of one score, because an invented figure and a wrong answer are different
+failures with different fixes; a single score out of five would let one fabrication be averaged away by
+three correct sentences. A *different* model, because a model marking its own work shares its own
+blind spots. Refusal scored as a correct outcome for the two unanswerable questions, because refusing
+is the right behaviour when the corpus cannot answer, and a harness that scores it as a miss would
+reward guessing.
+
+**Rejected.** A single 1-5 quality score, which is the obvious design and hides the failure that
+matters. Also rejected: telling the judge which questions are unanswerable, from the golden set. The
+judge decides for itself and the golden `answerable` flag is applied afterwards, in the aggregation, so
+no ground truth leaks into the thing being measured.
+
+**The free tier sets the judge's shape.** The judge model meters output tokens at a thousand a minute
+and refuses a request whose estimated output goes over that, and hidden reasoning counts as output.
+This is not a budget the judge can reason its way past. At the answerer's reply limit of 700 tokens,
+six of twenty verdicts came back cut off mid-JSON; asking for 1500 was refused outright with `Request
+too large ... Limit 1000, Requested 1017`. Qwen turns reasoning *on* with `low` and off with `none`, so
+the judge runs with `none` and a smaller reply limit than the answerer, and a whole run fits inside the
+meter. The cost is real and is written down rather than hidden: a judge that cannot think in tokens
+will miss subtleties that one which can would catch, and the reason it must write for every mark is
+what carries the accountability instead. Buying the judge a real thinking budget means a paid tier,
+which is recorded as the first thing to pay for rather than left as an aspiration.
+
+**Cost if wrong.** An AI grading an AI is a second opinion and not proof; the report says so in its own
+words rather than burying it. The judge can be too generous, and it shares some blind spots with the
+writer. The mitigations are the different model, a mandatory reason for every mark, and passages that
+are committed to the repository so any reason can be checked by hand. A rerun costs about ten minutes,
+because it is two model calls per question and a free plan meters tokens per minute.

@@ -78,8 +78,8 @@ protocol and not a rewrite.
 
 ## D-004 — Qdrant in local on-disk mode instead of Postgres with pgvector (2026-10-18)
 
-**Context.** The development machine has no Docker, and the obvious "serious" choice for a vector
-store in a portfolio project is Postgres with the pgvector extension.
+**Context.** The development machine has no Docker, and the obvious "serious" default for a
+persistent vector store is Postgres with the pgvector extension.
 
 **Decision.** Qdrant, in local on-disk mode via `QdrantClient(path=...)`.
 
@@ -102,8 +102,8 @@ server-only features, that is a configuration change plus a container, not a rew
 metrics in `results.md`. Provide a JSONL export.
 
 **Why.** No infrastructure, no account, no API key, and the data is needed in a queryable form for
-the report anyway. Owning the trace layer is also more defensible in an interview than clicking a
-hosted tool's toggle.
+the report anyway. Owning the trace layer is also more defensible than clicking a hosted tool's
+toggle: the record of what was sent and what came back stays in this repository.
 
 **Rejected.** Self-hosted Langfuse, which needs Docker; Langfuse cloud, which needs an account and
 an outbound dependency for a local evaluation loop.
@@ -135,9 +135,9 @@ proves troublesome, everything runs on CPU, which is acceptable at this corpus s
 
 **Decision.** Implement RRF in this repository.
 
-**Why.** It is roughly fifteen lines, it is testable as a pure function, and it is a component the
-author must be able to explain in an interview. Owning it costs less than owning a dependency plus
-its configuration surface.
+**Why.** It is roughly fifteen lines, it is testable as a pure function, and the fusion weights are
+then a knob with a number attached to it instead of a library default. Owning it costs less than
+owning a dependency plus its configuration surface.
 
 **Rejected.** Qdrant's native sparse-vector fusion, which hides the ranking decision behind a flag.
 
@@ -254,7 +254,7 @@ the project to be half-built without being judged at its worst.
 **Decision.** Commit the `.html` diagrams and their `.json` sources. Do not commit the receipts.
 
 **Why.** The receipts are validation output, regenerable on demand, and they are tens of kilobytes
-each of tool scaffolding in a portfolio repository.
+each of tool scaffolding in a repository.
 
 **Rejected.** Committing everything, on the grounds that completeness is harmless. It is not: noise
 in a repository makes the author look like they do not curate.

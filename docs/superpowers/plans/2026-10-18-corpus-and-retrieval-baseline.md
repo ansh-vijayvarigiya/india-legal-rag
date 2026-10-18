@@ -1298,6 +1298,6 @@ git commit -m "feat: add retrieval inspector"
 ## Notes for the Implementer
 
 - Tasks 1 to 14 are all offline and deterministic except the one-time fixture capture in Task 4 and the model download in Task 8. Only Task 15 touches the live network at scale.
-- `results.md` is committed. It is a portfolio artifact, not a build output. Re-running the evaluation and committing the change is how each later milestone shows its improvement.
+- `results.md` is committed. It is a checked-in artifact, not a build output. Re-running the evaluation and committing the change is how each later milestone shows its improvement.
 - When the corpus is re-ingested and chunk ids change, `validate_golden_against_corpus` will fail. That is the intended behaviour. Re-verify the affected questions rather than regenerating the whole set.
 - Nothing in this plan calls a language model at runtime. The one place a model is used is Task 15, by hand, to propose candidate questions.

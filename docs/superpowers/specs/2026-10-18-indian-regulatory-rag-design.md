@@ -5,8 +5,9 @@ Status: Approved design. Implementation plan not yet written.
 
 ## 1. Goal
 
-Build one portfolio project that supports a move from generalist software engineering into a
-GenAI / LLM application engineer role in the Indian market (target compensation around 25 LPA).
+Build a small, self-contained retrieval system over Indian regulatory text whose defining property is
+that its quality is measured. The system is the vehicle; the evaluation harness and the ablation table
+are the deliverable.
 
 The differentiator is deliberately not "a RAG application". Anyone can glue an embedding model to
 a vector store. The scarce skill is proving a retrieval system works, quantifying each design
@@ -169,8 +170,8 @@ Components:
 - **Lexical:** BM25 over the same chunks, using a pure-Python implementation with a legal-aware
   tokenizer written here. Tokenisation control matters more than index persistence for this corpus,
   because citations such as `36(4)` and acronyms such as `ITC` must be indexed as single terms.
-- **Fusion:** Reciprocal Rank Fusion implemented in this repository. It is roughly fifteen lines and
-  is worth owning, since it has to be explained in an interview.
+- **Fusion:** Reciprocal Rank Fusion implemented in this repository. It is roughly fifteen lines, and
+  a ranking decision that can be read in full is worth more than one hidden behind a flag.
 - **Reranker:** a local `BAAI/bge-reranker` cross-encoder over the top 50 candidates.
 - **Query transformation:** rules plus a small model call. Acronym expansion matters because legal
   text is dense with acronyms; a query using "ITC" and a statute using "input tax credit" must meet

@@ -1,0 +1,8 @@
+pyproject.toml
+src/legalrag/__init__.py
+src/legalrag.egg-info/PKG-INFO
+src/legalrag.egg-info/SOURCES.txt
+src/legalrag.egg-info/dependency_links.txt
+src/legalrag.egg-info/requires.txt
+src/legalrag.egg-info/top_level.txt
+tests/test_config.py

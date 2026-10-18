@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.superpowers/
+data/raw/
+data/parsed/
+data/documents/
+data/chunks/
+data/qdrant/
+data/cache/
+docs/diagrams/*.finalize.json
+docs/diagrams/*.finalize-summary.json
+docs/diagrams/*.delivery.json
+docs/diagrams/*.browser-check.json

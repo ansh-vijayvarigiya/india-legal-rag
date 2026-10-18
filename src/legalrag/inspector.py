@@ -103,5 +103,14 @@ if __name__ == "__main__":
 
         import streamlit.web.cli as stcli
 
-        sys.argv = ["streamlit", "run", __file__, *sys.argv[1:]]
+        sys.argv = [
+            "streamlit",
+            "run",
+            # Headless skips the first-run "enter your email" prompt, which
+            # otherwise blocks the server forever on any machine that has not
+            # run Streamlit before, with no output explaining why.
+            "--server.headless=true",
+            *sys.argv[1:],
+            __file__,
+        ]
         raise SystemExit(stcli.main())

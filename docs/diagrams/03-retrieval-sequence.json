@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Dense Retrieval Sequence - One Query, Ranked Chunks",
+    "output": "docs/diagrams/03-retrieval-sequence.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [980, 560],
+    "column_fit": "spread"
+  },
+  "participants": [
+    { "id": "client", "type": "frontend", "label": "Eval CLI / Inspector", "sublabel": "runs the query" },
+    { "id": "retriever", "type": "backend", "label": "DenseRetriever", "sublabel": "dense-fixed" },
+    { "id": "embedder", "type": "cloud", "label": "Embedder", "sublabel": "bge-small-en-v1.5" },
+    { "id": "index", "type": "database", "label": "ChunkIndex", "sublabel": "Qdrant local mode" }
+  ],
+  "segments": [
+    { "from": 150, "to": 232, "label": "encode query" },
+    { "from": 233, "to": 320, "label": "search and rank" }
+  ],
+  "messages": [
+    { "id": "retrieve-call", "from": "client", "to": "retriever", "y": 160, "label": "retrieve(query, k=20)", "variant": "emphasis" },
+    { "id": "encode-call", "from": "retriever", "to": "embedder", "y": 188, "label": "encode([query])", "variant": "emphasis" },
+    { "id": "encode-return", "from": "embedder", "to": "retriever", "y": 216, "label": "float32 (1, 384)", "variant": "return" },
+    { "id": "search-call", "from": "retriever", "to": "index", "y": 244, "label": "search(vector, k)", "variant": "emphasis" },
+    { "id": "search-return", "from": "index", "to": "retriever", "y": 272, "label": "points + scores", "variant": "return" },
+    { "id": "retrieve-return", "from": "retriever", "to": "client", "y": 300, "label": "list[Retrieved], rank 1..k", "variant": "return" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Happy path",
+      "items": [
+        "The query text is encoded once, then searched; the first row of the vector is the query vector",
+        "Results come back as list[Retrieved] with chunk, score and rank starting at 1",
+        "The same DenseRetriever serves both entry points: python -m legalrag.eval and python -m legalrag.inspector"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Where the index lives",
+      "items": [
+        "ChunkIndex owns Qdrant: recreate, upsert, search, get, count are the only operations callers see",
+        "Qdrant runs in local on-disk mode at {data_dir}/qdrant because Docker is not available",
+        "An empty index returns [] and metrics score 0.0, never NaN (Review Focus #1)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Designed, not built",
+      "items": [
+        "Hybrid BM25 retrieval and reciprocal rank fusion",
+        "Cross-encoder reranking and query transformation",
+        "Temporal filtering by an as_on date",
+        "Each drops in behind this same Retriever protocol, so Eval Runner and Inspector stay unchanged"
+      ]
+    }
+  ]
+}

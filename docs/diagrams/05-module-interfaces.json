@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "legalrag Package - Modules and Interfaces",
+    "output": "docs/diagrams/05-module-interfaces.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [40, 80],
+    "cols": 5,
+    "gapX": 70,
+    "gapY": 70,
+    "cellW": 170,
+    "cellH": 68
+  },
+  "components": [
+    { "id": "config", "type": "backend", "label": "config.py", "sublabel": "Settings", "row": 0, "col": 0, "size": [170, 68] },
+    { "id": "models", "type": "backend", "label": "models.py", "sublabel": "Document, Chunk, Retrieved", "row": 0, "col": 1, "size": [170, 68] },
+    { "id": "ingest_cli", "type": "backend", "label": "ingest.py", "sublabel": "main(argv)", "tag": "Ingest CLI", "row": 1, "col": 0, "size": [170, 68] },
+    { "id": "rbi_source", "type": "cloud", "label": "sources/rbi.py", "sublabel": "fetch + parse", "tag": "RBI only", "row": 1, "col": 1, "size": [170, 68] },
+    { "id": "normalize", "type": "backend", "label": "normalize.py", "sublabel": "normalize_text", "row": 1, "col": 2, "size": [170, 68] },
+    { "id": "chunk", "type": "backend", "label": "chunk.py", "sublabel": "chunk_document", "row": 1, "col": 3, "size": [170, 68] },
+    { "id": "corpus", "type": "database", "label": "corpus.py", "sublabel": "JSONL read/write", "tag": "Corpus Store", "row": 1, "col": 4, "size": [170, 68] },
+    { "id": "inspector", "type": "frontend", "label": "inspector.py", "sublabel": "results_rows", "tag": "Inspector", "row": 2, "col": 0, "size": [170, 68] },
+    { "id": "retrieve", "type": "backend", "label": "retrieve.py", "sublabel": "DenseRetriever", "tag": "Retriever protocol", "row": 2, "col": 1, "size": [170, 68] },
+    { "id": "index", "type": "database", "label": "index.py", "sublabel": "ChunkIndex (Qdrant)", "row": 2, "col": 2, "size": [170, 68] },
+    { "id": "embed", "type": "cloud", "label": "embed.py", "sublabel": "Embedder.encode", "tag": "local model", "row": 2, "col": 3, "size": [170, 68] },
+    { "id": "golden", "type": "database", "label": "golden.py", "sublabel": "load_golden_set", "tag": "Golden Set", "row": 3, "col": 0, "size": [170, 68] },
+    { "id": "runner", "type": "backend", "label": "eval/runner.py", "sublabel": "run_eval, EvalRun", "tag": "Eval Runner", "row": 3, "col": 1, "size": [170, 68] },
+    { "id": "metrics", "type": "backend", "label": "eval/metrics.py", "sublabel": "recall, MRR, nDCG", "tag": "Metrics", "row": 3, "col": 2, "size": [170, 68] },
+    { "id": "report", "type": "database", "label": "eval/report.py", "sublabel": "render_report", "tag": "Report", "row": 3, "col": 3, "size": [170, 68] },
+    { "id": "golden_candidates", "type": "backend", "label": "golden_candidates.py", "sublabel": "sample_chunks", "row": 4, "col": 0, "size": [170, 68] },
+    { "id": "eval_cli", "type": "backend", "label": "eval/__main__.py", "sublabel": "main(argv)", "tag": "Eval CLI", "row": 4, "col": 1, "size": [170, 68] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Foundation", "wraps": ["config", "models"] },
+    { "kind": "region", "label": "Ingestion", "wraps": ["ingest_cli", "rbi_source", "normalize", "chunk", "corpus"] },
+    { "kind": "region", "label": "Retrieval", "wraps": ["retrieve", "index", "embed"] },
+    { "kind": "region", "label": "Evaluation", "wraps": ["golden", "runner", "metrics", "report"] }
+  ],
+  "connections": [
+    { "id": "config-ingest", "from": "config", "to": "ingest_cli", "label": "Settings", "variant": "emphasis" },
+    { "id": "models-chunk", "from": "models", "to": "chunk", "label": "types", "variant": "emphasis" },
+    { "id": "ingest-rbi", "from": "ingest_cli", "to": "rbi_source", "label": "fetches", "variant": "emphasis" },
+    { "id": "rbi-normalize", "from": "rbi_source", "to": "normalize", "label": "text", "variant": "emphasis" },
+    { "id": "normalize-chunk", "from": "normalize", "to": "chunk", "label": "clean", "variant": "emphasis" },
+    { "id": "chunk-corpus", "from": "chunk", "to": "corpus", "label": "JSONL", "variant": "emphasis" },
+    { "id": "corpus-embed", "from": "corpus", "to": "embed", "label": "chunks", "variant": "emphasis" },
+    { "id": "embed-index", "from": "embed", "to": "index", "label": "vectors", "variant": "emphasis" },
+    { "id": "index-retrieve", "from": "index", "to": "retrieve", "label": "search", "variant": "emphasis" },
+    { "id": "retrieve-runner", "from": "retrieve", "to": "runner", "label": "Retrieved", "variant": "emphasis" },
+    { "id": "inspector-retrieve", "from": "inspector", "to": "retrieve", "label": "query", "variant": "dashed" },
+    { "id": "golden-runner", "from": "golden", "to": "runner", "label": "golden", "variant": "emphasis" },
+    { "id": "runner-metrics", "from": "runner", "to": "metrics", "label": "ranked", "variant": "emphasis" },
+    { "id": "metrics-report", "from": "metrics", "to": "report", "label": "table", "variant": "emphasis" },
+    { "id": "evalcli-runner", "from": "eval_cli", "to": "runner", "label": "run", "variant": "dashed" },
+    { "id": "candidates-golden", "from": "golden_candidates", "to": "golden", "label": "candidates", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "What the modules own",
+      "items": [
+        "config.py holds Settings; models.py holds Document, Chunk, Retrieved and make_chunk_id",
+        "sources/rbi.py is the only source adapter; parse_document raises ParseError on an unrecognised page",
+        "corpus.py owns every JSONL read and write, so no other module touches files directly"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Interfaces that matter",
+      "items": [
+        "Retriever is a protocol with one method, retrieve(query, k); DenseRetriever is its only implementation here",
+        "Embedder.encode returns float32 (n, 384) and is the only place a model is loaded",
+        "ChunkIndex wraps Qdrant; callers never see a Qdrant client"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Designed, not built",
+      "items": [
+        "sources/ would add India Code and CBIC adapters beside rbi.py",
+        "retrieve.py would add BM25, RRF and a reranker configuration behind the same protocol",
+        "no module yet loads a language model for answers, citations or refusal"
+      ]
+    }
+  ]
+}

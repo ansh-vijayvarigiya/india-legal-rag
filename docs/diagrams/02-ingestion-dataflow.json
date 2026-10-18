@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "RBI Ingestion Data Flow - Artifacts Between Stages",
+    "output": "docs/diagrams/02-ingestion-dataflow.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [1068, 686]
+  },
+  "stages": [
+    { "label": "Fetch" },
+    { "label": "Parse" },
+    { "label": "Chunk" },
+    { "label": "Embed" },
+    { "label": "Index" }
+  ],
+  "nodes": [
+    { "id": "rbi_site", "type": "external", "label": "RBI Website", "sublabel": "notification index", "stage": 0, "row": 0 },
+    { "id": "normaliser", "type": "backend", "label": "Normaliser", "sublabel": "normalize_text", "stage": 1, "row": 0 },
+    { "id": "fetcher", "type": "cloud", "label": "RBI Fetcher", "sublabel": "httpx, 1 req/s", "tag": "writes snapshot", "stage": 0, "row": 1 },
+    { "id": "parser", "type": "backend", "label": "RBI Parser", "sublabel": "parse_document", "tag": "ParseError skips page", "stage": 1, "row": 1 },
+    { "id": "chunker", "type": "backend", "label": "Chunker", "sublabel": "chunk_document", "tag": "fixed 2000 / 200", "stage": 2, "row": 1 },
+    { "id": "embedder", "type": "backend", "label": "Embedder", "sublabel": "bge-small-en-v1.5", "tag": "float32, L2-normalised", "stage": 3, "row": 1 },
+    { "id": "chunk_index", "type": "database", "label": "ChunkIndex", "sublabel": "Qdrant local collection", "tag": "rebuilt at eval time", "stage": 4, "row": 1 },
+    { "id": "raw_store", "type": "database", "label": "Raw HTML Snapshots", "sublabel": "data/raw/rbi/", "tag": "written by fetcher", "stage": 0, "row": 2 },
+    { "id": "doc_store", "type": "database", "label": "Documents", "sublabel": "data/documents/", "tag": "documents.jsonl", "stage": 1, "row": 2 },
+    { "id": "chunk_store", "type": "database", "label": "Chunks", "sublabel": "data/chunks/", "tag": "chunks.jsonl", "stage": 2, "row": 2 }
+  ],
+  "flows": [
+    { "id": "rbi-pages", "from": "rbi_site", "to": "fetcher", "label": "notification pages", "classification": "public source", "variant": "emphasis", "labelAt": [100, 201] },
+    { "id": "fetch-raw", "from": "fetcher", "to": "raw_store", "label": "raw HTML snapshots", "classification": "persisted", "variant": "emphasis", "labelAt": [100, 315] },
+    { "id": "parse-snapshot", "from": "raw_store", "to": "parser", "label": "local HTML", "classification": "offline re-run", "variant": "emphasis" },
+    { "id": "parse-normalise", "from": "parser", "to": "normaliser", "label": "normalize_text", "classification": "in-process call", "variant": "dashed", "labelAt": [315, 222] },
+    { "id": "parse-document", "from": "parser", "to": "doc_store", "label": "Document records", "classification": "documents.jsonl", "variant": "emphasis", "labelAt": [315, 315] },
+    { "id": "document-in", "from": "parser", "to": "chunker", "label": "Documents", "classification": "in-memory", "variant": "emphasis" },
+    { "id": "chunk-records", "from": "chunker", "to": "chunk_store", "label": "Chunk records", "classification": "chunks.jsonl", "variant": "emphasis", "labelAt": [530, 315] },
+    { "id": "re-read-chunks", "from": "chunk_store", "to": "embedder", "label": "chunks", "classification": "read at eval time", "variant": "emphasis" },
+    { "id": "embed-vectors", "from": "embedder", "to": "chunk_index", "label": "vectors", "classification": "in memory", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Stages and artifacts",
+      "items": [
+        "Each stage reads and writes JSONL or HTML so it can be inspected and re-run",
+        "python -m legalrag.ingest runs parse, normalise and chunk in one process and writes both JSONL files",
+        "--snapshots PATH runs that path against local HTML with no network"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "What is read back",
+      "items": [
+        "documents.jsonl is written but nothing reads it at this milestone",
+        "chunks.jsonl is the input to embedding and indexing",
+        "python -m legalrag.eval and python -m legalrag.inspector re-read chunks.jsonl, re-embed with bge-small-en-v1.5 and recreate the Qdrant collection",
+        "vectors exist in memory as float32 and are not a separate artifact"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Designed, not built",
+      "items": [
+        "India Code and CBIC sources, and PDF parsing for them",
+        "structure-aware chunking and the enrich stage (per-chunk metadata, amendment chain)",
+        "a separate command per stage: the spec describes one, this plan ships the ingest and eval entry points",
+        "hybrid BM25 retrieval, RRF and reranking downstream of this pipeline"
+      ]
+    }
+  ]
+}

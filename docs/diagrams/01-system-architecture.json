@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "India Legal RAG - Built Baseline (Milestone 1)",
+    "output": "docs/diagrams/01-system-architecture.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [40, 80],
+    "cols": 6,
+    "gapX": 80,
+    "gapY": 60,
+    "cellW": 170,
+    "cellH": 70
+  },
+  "components": [
+    { "id": "ingest_cli", "type": "backend", "label": "Ingest CLI", "sublabel": "python -m legalrag.ingest", "row": 0, "col": 1, "size": [170, 70] },
+    { "id": "rbi_site", "type": "external", "label": "RBI Website", "sublabel": "index + notification pages", "row": 1, "col": 0, "size": [170, 70] },
+    { "id": "fetcher", "type": "cloud", "label": "RBI Fetcher", "sublabel": "httpx, 1 req/s", "row": 1, "col": 1, "size": [170, 70] },
+    { "id": "snapshots", "type": "database", "label": "Raw HTML Snapshots", "sublabel": "data/raw/rbi/{id}.html", "tag": "committed sample", "row": 1, "col": 2, "size": [170, 70] },
+    { "id": "parser", "type": "backend", "label": "RBI Parser", "sublabel": "parse_document", "tag": "ParseError skips page", "row": 1, "col": 3, "size": [170, 70] },
+    { "id": "normaliser", "type": "backend", "label": "Normaliser", "sublabel": "normalize_text", "row": 1, "col": 4, "size": [170, 70] },
+    { "id": "chunker", "type": "backend", "label": "Chunker", "sublabel": "chunk_document", "tag": "fixed 2000 / 200", "row": 1, "col": 5, "size": [170, 70] },
+    { "id": "corpus_store", "type": "database", "label": "Corpus Store", "sublabel": "documents + chunks JSONL", "row": 2, "col": 5, "size": [170, 70] },
+    { "id": "embedder", "type": "backend", "label": "Embedder", "sublabel": "bge-small-en-v1.5", "tag": "local, no API key", "row": 2, "col": 4, "size": [170, 70] },
+    { "id": "chunk_index", "type": "database", "label": "ChunkIndex", "sublabel": "Qdrant local mode", "row": 2, "col": 3, "size": [170, 70] },
+    { "id": "dense_retriever", "type": "backend", "label": "DenseRetriever", "sublabel": "configuration 0", "row": 2, "col": 2, "size": [170, 70] },
+    { "id": "eval_runner", "type": "backend", "label": "Eval Runner", "sublabel": "run_eval, k_max 20", "row": 2, "col": 1, "size": [170, 70] },
+    { "id": "metrics", "type": "backend", "label": "Metrics", "sublabel": "recall, precision, MRR, nDCG", "tag": "no language model", "row": 2, "col": 0, "size": [170, 70] },
+    { "id": "eval_cli", "type": "backend", "label": "Eval CLI", "sublabel": "python -m legalrag.eval", "row": 3, "col": 5, "size": [170, 70] },
+    { "id": "settings", "type": "backend", "label": "Settings", "sublabel": "LEGALRAG_* env vars", "row": 3, "col": 3, "size": [170, 70] },
+    { "id": "inspector", "type": "frontend", "label": "Inspector", "sublabel": "Streamlit, results_rows", "row": 3, "col": 2, "size": [170, 70] },
+    { "id": "golden_set", "type": "database", "label": "Golden Set", "sublabel": "golden/milestone1.yaml", "tag": "20 verified questions", "row": 3, "col": 1, "size": [170, 70] },
+    { "id": "report", "type": "database", "label": "Report", "sublabel": "results.md", "row": 3, "col": 0, "size": [170, 70] }
+  ],
+  "connections": [
+    { "id": "rbi-pages", "from": "rbi_site", "to": "fetcher", "label": "fetch pages", "variant": "emphasis" },
+    { "id": "ingest-drives", "from": "ingest_cli", "to": "fetcher", "label": "orchestrates", "variant": "dashed" },
+    { "id": "fetch-raw", "from": "fetcher", "to": "snapshots", "label": "raw HTML", "variant": "emphasis" },
+    { "id": "parse-snapshot", "from": "snapshots", "to": "parser", "label": "reads HTML", "variant": "emphasis" },
+    { "id": "parse-normalise", "from": "parser", "to": "normaliser", "label": "body text", "variant": "emphasis" },
+    { "id": "normalise-chunk", "from": "normaliser", "to": "chunker", "label": "clean text", "variant": "emphasis" },
+    { "id": "chunk-write", "from": "chunker", "to": "corpus_store", "label": "writes JSONL", "variant": "emphasis" },
+    { "id": "read-chunks", "from": "corpus_store", "to": "embedder", "label": "chunks", "variant": "emphasis" },
+    { "id": "embed-vectors", "from": "embedder", "to": "chunk_index", "label": "vectors", "variant": "emphasis" },
+    { "id": "index-search", "from": "chunk_index", "to": "dense_retriever", "label": "search", "variant": "emphasis" },
+    { "id": "retrieve-runner", "from": "dense_retriever", "to": "eval_runner", "label": "Retrieved", "variant": "emphasis" },
+    { "id": "runner-metrics", "from": "eval_runner", "to": "metrics", "label": "ranked ids", "variant": "emphasis" },
+    { "id": "metrics-report", "from": "metrics", "to": "report", "label": "results table", "variant": "emphasis" },
+    { "id": "golden-runner", "from": "golden_set", "to": "eval_runner", "label": "questions", "variant": "dashed" },
+    { "id": "settings-index", "from": "settings", "to": "chunk_index", "label": "qdrant_path", "variant": "dashed" },
+    { "id": "inspector-retriever", "from": "inspector", "to": "dense_retriever", "label": "query + k", "variant": "dashed" },
+    { "id": "evalcli-store", "from": "eval_cli", "to": "corpus_store", "label": "rebuilds index", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Built at this milestone",
+      "items": [
+        "RBI notification pages only; India Code and CBIC are not ingested",
+        "fixed-size chunks: chunk_document, 2000 chars with 200 overlap",
+        "dense retrieval only - configuration 0 of the spec ladder",
+        "retrieval metrics only; no language model is called"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Entry points",
+      "items": [
+        "python -m legalrag.ingest --source rbi fetches live pages; --snapshots runs offline from local HTML",
+        "python -m legalrag.eval reads chunks.jsonl, recreates ChunkIndex, validates the golden set, writes results.md",
+        "python -m legalrag.inspector is a diagnostic page, not a product surface"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Designed, not built",
+      "items": [
+        "India Code and CBIC sources; PDF parsing; structure-aware chunking; per-chunk metadata and the as_on temporal model",
+        "BM25 with Reciprocal Rank Fusion; cross-encoder reranking; query transformation",
+        "answer generation, citations, refusal, the calibrated LLM judge",
+        "FastAPI service, trace logging and any deployed UI"
+      ]
+    }
+  ]
+}

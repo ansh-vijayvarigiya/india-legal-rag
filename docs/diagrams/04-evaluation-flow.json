@@ -1,0 +1,80 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Evaluation Flow - Golden Set, Gate, Metrics, Report",
+    "output": "docs/diagrams/04-evaluation-flow.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "visual_preset": "signal-flow"
+  },
+  "lanes": [
+    { "id": "load", "label": "Load Inputs" },
+    { "id": "gate", "label": "Validation Gate", "variant": "exception" },
+    { "id": "score", "label": "Score and Report" }
+  ],
+  "phases": [
+    { "id": "load", "label": "Load", "fromCol": 0, "toCol": 1 },
+    { "id": "check", "label": "Validate", "fromCol": 2, "toCol": 2, "variant": "emphasis" },
+    { "id": "report", "label": "Score + report", "fromCol": 3, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["cli", "chunks", "validate", "runner", "metrics", "report"],
+  "nodes": [
+    { "id": "cli", "lane": "load", "col": 0, "type": "backend", "label": "Eval CLI", "sublabel": "python -m legalrag.eval", "width": 140 },
+    { "id": "chunks", "lane": "load", "col": 1, "type": "database", "label": "Chunks", "sublabel": "chunks.jsonl", "width": 140 },
+    { "id": "golden_set", "lane": "load", "col": 2, "type": "database", "label": "Golden Set", "sublabel": "milestone1.yaml", "width": 140 },
+    { "id": "validate", "lane": "gate", "col": 2, "type": "backend", "label": "Validate", "sublabel": "ids vs corpus", "width": 140 },
+    { "id": "halt", "lane": "gate", "col": 3, "type": "security", "label": "Halt", "sublabel": "GoldenSetError", "width": 140 },
+    { "id": "runner", "lane": "score", "col": 3, "type": "backend", "label": "Eval Runner", "sublabel": "one run per config", "width": 140 },
+    { "id": "metrics", "lane": "score", "col": 4, "type": "backend", "label": "Metrics", "sublabel": "recall, MRR, nDCG", "width": 140 },
+    { "id": "report", "lane": "score", "col": 5, "type": "database", "label": "Report", "sublabel": "results.md", "width": 140 }
+  ],
+  "edges": [
+    { "id": "cli-chunks", "from": "cli", "to": "chunks", "variant": "emphasis" },
+    { "id": "cli-golden", "from": "cli", "to": "golden_set", "label": "load golden", "variant": "dashed", "route": "up-channel", "fromSide": "top", "toSide": "top" },
+    { "id": "chunks-validate", "from": "chunks", "to": "validate", "label": "corpus ids", "variant": "emphasis" },
+    { "id": "golden-validate", "from": "golden_set", "to": "validate", "label": "relevant ids", "variant": "emphasis" },
+    { "id": "validate-runner", "from": "validate", "to": "runner", "label": "ok", "variant": "emphasis" },
+    { "id": "validate-halt", "from": "validate", "to": "halt", "label": "missing id", "variant": "security", "role": "error" },
+    { "id": "runner-metrics", "from": "runner", "to": "metrics", "variant": "emphasis" },
+    { "id": "metrics-report", "from": "metrics", "to": "report", "label": "results table", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Happy path",
+      "items": [
+        "Eval CLI reads chunks.jsonl, recreates ChunkIndex and re-embeds, then runs one EvalRun per configuration",
+        "Only one configuration exists at this milestone: dense-fixed",
+        "Metrics are computed per question and averaged; no language model is called"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Metrics and k",
+      "items": [
+        "Reported key set is k = 5, 10, 20 and evaluation retrieves k_max = 20",
+        "Precision divides by k; recall and nDCG use the full relevant set of a question",
+        "A zero-result retrieval scores 0.0 for every metric, never NaN (Review Focus #1 and #3)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Hard fail, not a silent zero",
+      "items": [
+        "Validate checks every relevant chunk id against the corpus before any scoring",
+        "An id that re-ingestion removed raises GoldenSetError naming the question and the missing id (Review Focus #2)",
+        "The CLI prints the message and returns 1 instead of writing a misleading report"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Designed, not built",
+      "items": [
+        "answer metrics, citation validity, refusal and the calibrated LLM judge",
+        "BM25, RRF, cross-encoder reranking and query transformation as extra configurations",
+        "FastAPI service, trace logging and a deployed UI"
+      ]
+    }
+  ]
+}

@@ -239,9 +239,10 @@ def _answer_entry(st, question: str, retriever: DenseRetriever, client) -> dict:
 def _render_answer(st, entry: dict, client) -> None:
     if client is None:
         st.warning(
-            "No AI key configured, so there is no written answer here — the "
-            "passages below are what retrieval found. To switch answers on, put "
-            "`LEGALRAG_LLM_API_KEY=...` in a `.env` file in the project root."
+            "No AI key configured, so there is no written answer here - the "
+            "passages below are what retrieval found. A local run reads "
+            "`LEGALRAG_LLM_API_KEY` from a `.env` file in the project root; a "
+            "hosted copy reads it from that app's secrets."
         )
         return
 

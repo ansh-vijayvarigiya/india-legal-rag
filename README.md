@@ -22,6 +22,7 @@ answer. Grading those answers is the step after that.
 - [What this is](#what-this-is)
 - [Headline results](#headline-results)
 - [Quickstart](#quickstart)
+- [Deploying it](#deploying-it)
 - [How it works](#how-it-works)
 - [The corpus](#the-corpus)
 - [The evaluation harness](#the-evaluation-harness)
@@ -141,7 +142,9 @@ Windows; on Linux or macOS replace `.venv\Scripts\python.exe` with
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
 
-# 1. Build the corpus. Two ways, with different guarantees:
+# 1. Build the corpus. The chunk store is committed, so a fresh clone can skip
+#    this and go straight to step 2. Two ways to rebuild it, with different
+#    guarantees:
 
 #    from the committed snapshots — offline, deterministic, matches results.md
 .venv\Scripts\python.exe -m legalrag.ingest --source rbi --snapshots data/raw/rbi
@@ -174,6 +177,39 @@ explicitly: `make eval PYTHON=.venv/Scripts/python.exe`.
 
 Written answers additionally need a free AI key — see
 [Asking questions](#asking-questions). Everything else works without one.
+
+---
+
+## Deploying it
+
+`app.py` in the repository root is the file a host runs. It exists because a host
+runs a single file and installs from `requirements.txt` rather than installing this
+package: it puts `src` on the import path, copies any dashboard secret into the
+environment that `Settings` reads, and then calls the same `legalrag.inspector`
+entry the local command calls. The page itself is identical either way, which is
+the point - a second page written for deployment would be a second page to keep
+correct.
+
+On Streamlit Community Cloud, which is what the hosted copy uses:
+
+1. Deploy from this repository, branch `main`, main file **`app.py`**.
+2. Choose **Python 3.11**. `pyproject.toml` pins `<3.12`, and the CPU torch pin in
+   `requirements.txt` is built for that version.
+3. Put the key in the app's **Secrets**, never in the repository:
+
+```
+LEGALRAG_LLM_API_KEY = "..."
+LEGALRAG_LLM_MODEL = "openai/gpt-oss-120b"
+LEGALRAG_JUDGE_MODEL = "qwen/qwen3.8-27b"
+```
+
+The first boot takes a minute or two, because the host downloads the embedding
+model and embeds 154 chunks on CPU before the first page renders. The vector index
+is rebuilt per process and is not committed; the chunk store it is rebuilt from is.
+
+Without the key the app still runs. Retrieval, the Passages tab and the whole
+Evaluation tab work, and only written answers are off. That is deliberate: the
+evaluation is the claim this project makes, and it does not depend on a model.
 
 **Note where the time goes.** Ingest is cheap: it parses and chunks text and
 writes JSONL, so it finishes in seconds and downloads nothing. The slow part is

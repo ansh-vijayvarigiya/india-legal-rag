@@ -463,3 +463,41 @@ words rather than burying it. The judge can be too generous, and it shares some 
 writer. The mitigations are the different model, a mandatory reason for every mark, and passages that
 are committed to the repository so any reason can be checked by hand. A rerun costs about ten minutes,
 because it is two model calls per question and a free plan meters tokens per minute.
+
+## D-023 - The evaluation is shown in the interface, from two different sources (2026-10-21)
+
+**Decision.** The inspector gets a third tab, `Evaluation`, and every answer gets a `Grade this
+answer` button.
+
+- The tab's **retrieval** half is computed live: it runs the twenty golden questions through the
+  index the app is holding and prints the six headline numbers plus one row per question (type,
+  labelled chunks, how many labels landed in the top 5, rank of the first, found at any depth).
+- The tab's **answer** half is read from the committed `answers.md`: the counts and the verdict table,
+  with each answer's reason behind a fold.
+- The **button** runs `legalrag.judge` on the answer on the screen, with the same client settings as
+  the batch run, and prints the three marks and the reason beside it.
+
+**Why.** The evaluation existed only in `results.md` and `answers.md`. A reader who opens the app asks
+a question, gets a paragraph, and has no way to see that anything was measured — the project reads as a
+chatbot with a report in a drawer. The thing this repository is actually about is that the output is
+checked, so the check belongs where the output is.
+
+Computing the retrieval half rather than parsing `results.md` is deliberate: two sources of truth for
+the same number is how a stale scoreboard survives a corpus change. If the live numbers stop matching
+the committed report, that disagreement is the signal, and it is visible on the page instead of buried
+in a file nobody re-opened.
+
+Reading the answer half rather than running it is the opposite trade, for a plain reason: twenty
+questions is forty model calls, which is several minutes and most of a day's free allowance. A page
+load must not cost that. The split is labelled on the page, so a reader knows which numbers are live.
+
+**Rejected.** A single blended "quality score" in the UI, which would hide the partial-hit case the
+per-question table exists to show. Also rejected: grading every answer automatically, because it
+doubles the cost and the quota of every interaction, including the ones a reader is only skimming.
+
+**Cost if wrong.** The retrieval half runs twenty local queries on every page load unless cached, which
+is why it is cached on the chunk count: a re-ingest invalidates it, a widget click does not. The button
+spends a second call, so it is a button and it says so. The live judge and the batch judge are the same
+model with the same prompt and the same reasoning setting, so a mark given in the browser should match
+one given by `make judge`; they are not byte-identical because generation is stochastic, and the reason
+line is what makes either checkable by hand.

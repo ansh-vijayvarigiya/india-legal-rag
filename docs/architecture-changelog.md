@@ -99,3 +99,30 @@ the only way to know an answer had got worse was to read one.
 The grader is itself a model, so answer quality is an opinion with a reason attached rather than a
 measurement, and it inherits some of the writer's blind spots. Refusal is a prompt instruction rather
 than a calibrated confidence threshold, so it is a behaviour that can be observed but not tuned.
+
+## 2026-10-21 - The evaluation moves into the interface
+
+**What changed.** `legalrag.inspector` gained a third tab, `Evaluation`, and the Answer tab gained a
+`Grade this answer` button. The tab scores retrieval live over the golden set and renders the committed
+answer-grading summary from `answers.md`; the button runs `legalrag.judge` on the answer currently on
+the screen. Answers are now cached per question in the Streamlit session, so a widget click no longer
+buys a fresh answer.
+
+**Shape.** No new entry point and no new dependency. The interface now reads both evaluation artifacts
+- `results.md`'s numbers, recomputed, and `answers.md`, parsed into a summary and a detail - and calls
+the same `judge_answer` the batch runner calls, with the same client settings. The row builders and the
+report splitter are pure functions next to the existing ones, which is why the tab has tests without a
+Streamlit runtime.
+
+**Deliberately absent.** No blended quality score, no automatic grading on every answer, no charts, and
+no second bespoke UI: the tab is `st.dataframe` and `st.markdown` over the artifacts that already exist.
+
+**Now checkable that was not before.** Whether the answer in front of a reader is right and backed up is
+visible beside it, and a partial retrieval (`q012`, `q013`, `q016`) is visible as `1 of 2` or `2 of 4`
+instead of a tick. A corpus that drifts from the committed baseline now shows up as the page disagreeing
+with `results.md`.
+
+**Still weak.** The live judge shares the free tier's output meter, so grading a second answer within a
+minute can be refused; the page says to wait. The committed answer grading is a snapshot of one run, so
+it can and will age. Retrieval is still the bottleneck the scoreboard makes obvious: `q008` is missed at
+every depth.

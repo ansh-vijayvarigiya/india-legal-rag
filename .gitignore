@@ -12,7 +12,10 @@ data/raw/*
 !data/raw/rbi/
 data/parsed/
 data/documents/
-data/chunks/
+# The chunk store is committed, because the app rebuilds its index from it and a
+# clone should be able to run `make eval` without fetching anything first.
+data/chunks/*
+!data/chunks/chunks.jsonl
 data/qdrant/
 data/cache/
 docs/diagrams/*.finalize.json

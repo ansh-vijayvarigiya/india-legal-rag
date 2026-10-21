@@ -1,16 +1,15 @@
-"""Retrieval inspector, answer page, and the evaluation behind both.
+"""The page a reader lands on: ask a question, then see how good the search is.
 
-Three views over the same index. "Answer" asks a model to read the retrieved
-passages and reply in plain English, with the passages kept underneath so the
-answer can be checked rather than trusted, and with a button that runs a second
-model on that same answer to mark it. "Passages" is the raw ranked list, which is
-what you want when an answer looks wrong and the retrieval behind it needs to be
-seen. "Evaluation" is the scoreboard: retrieval is scored live against the 20
-labelled questions, and the answer grading is read from the committed report.
+One page, read top to bottom, because a tab bar asks a newcomer to choose a door
+before knowing what any of the rooms are for. Section 1 is the question and the
+answer written from the retrieved passages, with a button that runs a second model
+on that same answer. Section 2 is the scoreboard: retrieval scored live against the
+20 labelled questions, and the committed grading of the written answers. Section 3
+is folded away and holds the exact numbers and the raw ranked passages, which is
+what you want when an answer looks wrong and the retrieval behind it needs seeing.
 
-The pure parts — row building, report splitting, example selection, error
-wording — are separated from the rendering so they can be tested without running
-Streamlit.
+The pure parts — row building, report splitting, example selection, error wording —
+are separated from the rendering so they can be tested without running Streamlit.
 """
 
 from __future__ import annotations
@@ -108,24 +107,87 @@ def judge_client(settings: Settings) -> OpenAIChatClient | None:
     )
 
 
+_KIND = {
+    "single_clause": "one paragraph",
+    "multi_clause": "two paragraphs",
+    "cross_document": "spread over circulars",
+    "temporal": "changed over time",
+    "unanswerable": "not in this corpus",
+}
+
+_QUESTION_WIDTH = 78
+
+
+def _short(text: str) -> str:
+    if len(text) <= _QUESTION_WIDTH:
+        return text
+    cut = text[: _QUESTION_WIDTH - 1]
+    head, _, _ = cut.rpartition(" ")
+    return (head or cut) + "…"
+
+
 def metrics_rows(metrics: RetrievalMetrics) -> list[dict]:
-    """The headline numbers, in the order `results.md` reports them."""
+    """The scoreboard, with what each number actually means in the same row.
+
+    Retrieval is jargon by default. A reader who does not work in this field can
+    read 0.78 and learn nothing from it, so every row carries the question the
+    number answers rather than only the metric's name.
+    """
     return [
-        {"metric": "recall@5", "score": round(metrics.recall[5], 2)},
-        {"metric": "recall@10", "score": round(metrics.recall[10], 2)},
-        {"metric": "recall@20", "score": round(metrics.recall[20], 2)},
-        {"metric": "precision@5", "score": round(metrics.precision[5], 2)},
-        {"metric": "mrr", "score": round(metrics.mrr, 2)},
-        {"metric": "ndcg@10", "score": round(metrics.ndcg[10], 2)},
+        {
+            "metric": "recall@5",
+            "score": round(metrics.recall[5], 2),
+            "what it means": (
+                "How often the paragraph holding the answer was among the 5 the "
+                "written answer is allowed to read. 0.78 is about 4 times in 5."
+            ),
+        },
+        {
+            "metric": "recall@10",
+            "score": round(metrics.recall[10], 2),
+            "what it means": "The same, if it were allowed to read 10 passages.",
+        },
+        {
+            "metric": "recall@20",
+            "score": round(metrics.recall[20], 2),
+            "what it means": (
+                "The same at 20, which is everything this search returns. Even "
+                "that deep it does not find every answer."
+            ),
+        },
+        {
+            "metric": "precision@5",
+            "score": round(metrics.precision[5], 2),
+            "what it means": (
+                "Of the 5 passages it read, how many were marked as holding the "
+                "answer. A low number is expected: a passage that helps without "
+                "containing the answer still counts as wrong here."
+            ),
+        },
+        {
+            "metric": "mrr",
+            "score": round(metrics.mrr, 2),
+            "what it means": (
+                "How near the top the right paragraph sat. 1.0 means always "
+                "first; 0.73 means usually first, sometimes a few places down."
+            ),
+        },
+        {
+            "metric": "ndcg@10",
+            "score": round(metrics.ndcg[10], 2),
+            "what it means": (
+                "Like the row above, but gives credit for finding more than one "
+                "relevant paragraph, and for their order."
+            ),
+        },
     ]
 
 
 def question_rows(run: EvalRun, questions: Sequence[GoldenQuestion]) -> list[dict]:
-    """One row per golden question, saying whether retrieval found the label.
+    """One row per question, in words a reader outside this field can follow.
 
-    An unanswerable question has nothing to find, so it is reported as `n/a`
-    rather than as a miss. Reporting it as a miss would show the correct result
-    as a failure.
+    The chunk ids this table used to show mean nothing to anyone who was not in
+    the room when they were made, so the row carries the question itself.
     """
     by_qid = {question.qid: question for question in questions}
     rows: list[dict] = []
@@ -133,32 +195,39 @@ def question_rows(run: EvalRun, questions: Sequence[GoldenQuestion]) -> list[dic
         question = by_qid.get(result.qid)
         relevant = set(result.relevant_ids)
         if not relevant:
-            rank, found, labelled, in_top_5 = 0, "n/a", "none, by design", "n/a"
+            # Nothing to find, so a miss would be the correct result reported as
+            # a failure. It is reported as its own outcome instead.
+            verdict, rank, kind = "n/a", "-", "not in this corpus"
         else:
-            rank = next(
+            position = next(
                 (
-                    position
-                    for position, chunk_id in enumerate(result.retrieved_ids, start=1)
+                    index
+                    for index, chunk_id in enumerate(result.retrieved_ids, start=1)
                     if chunk_id in relevant
                 ),
                 0,
             )
-            found = "yes" if rank else "no"
-            labelled = ", ".join(sorted(relevant))
-            # Counted, not just ranked: a question whose second labelled chunk
-            # sits at rank 15 is a partial hit, and "found: yes" would hide it.
-            in_top_5 = f"{len(set(result.retrieved_ids[:5]) & relevant)} of {len(relevant)}"
+            found_in_5 = len(set(result.retrieved_ids[:5]) & relevant)
+            if not position:
+                verdict = "no"
+            elif found_in_5 < len(relevant):
+                # Some of the evidence was out of reach, which is not the same as
+                # finding the paragraph, and should not read as a tick.
+                verdict = "partly"
+            else:
+                verdict = "yes"
+            rank = str(position) if position else "never"
+            kind = _KIND.get(question.category, "") if question else ""
         rows.append(
             {
-                "qid": result.qid,
-                "type": question.category if question else "",
-                "labelled chunks": labelled,
-                "labelled in top 5": in_top_5,
-                "first labelled at rank": rank,
-                "found in top 20": found,
+                "question": _short(question.question) if question else result.qid,
+                "kind": kind,
+                "found the answer?": verdict,
+                "first hit at": rank,
             }
         )
     return rows
+
 
 
 def answers_report(markdown: str) -> tuple[str, str]:
@@ -290,13 +359,17 @@ def _render_grading(st, entry: dict, judge) -> None:
         entry["verdict"] = verdict
 
     left, middle, right = st.columns(3)
-    left.metric("Answers the question", verdict.correct)
-    middle.metric("Backed by the passages", verdict.grounded)
-    right.metric("Refused", "yes" if verdict.refused else "no")
-    st.caption(f"Why: {verdict.reason}")
+    left.metric("Does it answer what was asked?", verdict.correct)
+    middle.metric("Do the passages back it up?", verdict.grounded)
+    right.metric("Declined to answer", "yes" if verdict.refused else "no")
     st.caption(
-        "A model marking a model is a second opinion, not proof. Every reason is "
-        "checkable against the passages below."
+        f"**Why:** {verdict.reason}"
+    )
+    st.caption(
+        "`yes` / `partly` / `no` on the first two. `n/a` on the middle one means it "
+        "declined, so there is nothing to support. A model marking a model is a "
+        "second opinion, not proof - every reason can be checked against the "
+        "passages below."
     )
 
 
@@ -332,44 +405,128 @@ def main() -> None:
         st.stop()
         return
 
-    st.title("RBI regulatory search")
+    st.title("Search 25 RBI circulars")
     st.caption(
-        f"{chunk_count} passages from the 25 RBI circulars in this corpus. "
-        "Search runs locally. Retrieval is scored live in the Evaluation tab; "
-        "only a question and the passages it retrieves are sent to a model."
+        f"{chunk_count} passages cut from 25 Reserve Bank of India circulars. Ask a "
+        "question in plain words, get an answer written only from those passages, "
+        "then see for yourself how often the search finds the right one."
     )
 
-    answer_tab, passages_tab, evaluation_tab = st.tabs(["Answer", "Passages", "Evaluation"])
     client = answer_client(settings)
     judge = judge_client(settings)
 
-    with answer_tab:
-        question = st.text_input("Ask a question", key="answer_question")
+    st.header("1. Ask a question")
+    question = st.text_input(
+        "Your question",
+        key="answer_question",
+        placeholder="e.g. What is the penalty for a shortfall in the cash reserve ratio?",
+    )
 
-        examples = example_questions(settings.data_dir / "golden" / "milestone1.yaml")
-        if examples:
-            st.caption("Or click one of the questions this corpus was tested with:")
-            for column, example in zip(st.columns(len(examples)), examples):
-                if column.button(example, use_container_width=True):
-                    question = example
+    examples = example_questions(settings.data_dir / "golden" / "milestone1.yaml")
+    if examples:
+        st.caption("No question of your own? These are three the corpus was tested with:")
+        for column, example in zip(st.columns(len(examples)), examples):
+            if column.button(example, use_container_width=True):
+                question = example
 
-        if not question:
-            st.info("Type a question, or click one of the test questions above.")
-        else:
-            entry = _answer_entry(st, question, retriever, client)
-            _render_answer(st, entry, client)
-            _render_grading(st, entry, judge)
-            if entry["hits"]:
-                # With no key the passages are the whole answer, so show them.
-                _render_sources(st, entry["hits"], expanded=client is None)
+    if not question:
+        st.info("Type a question above, or click one of the three examples.")
+    else:
+        entry = _answer_entry(st, question, retriever, client)
+        _render_answer(st, entry, client)
+        _render_grading(st, entry, judge)
+        if entry["hits"]:
+            # With no key the passages are the whole answer, so show them.
+            _render_sources(st, entry["hits"], expanded=client is None)
 
-    with passages_tab:
-        st.caption("The raw ranked list, for checking what retrieval actually returned.")
+    st.divider()
+    st.header("2. How good is this search?")
+    st.caption(
+        "Search is scored against an answer key: 20 questions a human wrote, and "
+        "for each one the paragraph that actually holds the answer. The rows below "
+        "come from running all 20 through this app's index on load, so they are "
+        "measured here rather than copied from a report."
+    )
+
+    golden_path = settings.data_dir / "golden" / "milestone1.yaml"
+    run, questions = load_eval(retriever, chunk_count, str(golden_path))
+    if run is None:
+        st.info(f"No answer key at {golden_path}, so there is nothing to score against.")
+    else:
+        st.markdown(
+            f"**The short version.** The paragraph holding the answer was among "
+            f"the 5 passages the answer reads in about "
+            f"{round(run.metrics.recall[5] * 100)}% of questions. Allowing 10 "
+            f"passages instead of 5 moves that to "
+            f"{round(run.metrics.recall[10] * 100)}%."
+        )
+        st.dataframe(metrics_rows(run.metrics), hide_index=True)
+        st.caption(
+            "Jargon, translated: a **passage** is a piece of a circular, about a "
+            "paragraph long. **recall@5** means 'of the 5 passages handed on, was "
+            "the right one in there'. **precision@5** counts the passages that "
+            "were not needed as misses. **mrr** and **ndcg** are about ranking "
+            "order rather than just presence."
+        )
+
+        st.subheader("Question by question")
+        st.dataframe(question_rows(run, questions), hide_index=True)
+        st.caption(
+            "`partly` means the question needed two paragraphs and only one was "
+            "within reach, so the answer was written from half the evidence. "
+            "`n/a` is a question this corpus cannot answer, asked on purpose to "
+            "see whether the app refuses instead of inventing something."
+        )
+
+    st.subheader("Are the written answers any good?")
+    st.caption(
+        "A second model, different from the one that wrote them, reads each answer "
+        "beside the passages it was written from and marks it. Re-running all 20 "
+        "costs forty model calls, so this half is the committed report from the "
+        "last run - the button above grades a single answer live."
+    )
+    answers_path = settings.data_dir.parent / "answers.md"
+    try:
+        markdown = answers_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        st.info(f"No {answers_path.name} yet. Run `make judge` to write one.")
+    else:
+        summary, detail = answers_report(markdown)
+        st.markdown(summary)
+        st.caption(
+            "One row per test question. `right?` asks whether it resolved the "
+            "question at all; `backed up?` asks whether the passages supported "
+            "every claim, which is the one that catches an invented figure."
+        )
+        if detail:
+            with st.expander("Every answer, and the judge's reason for each mark"):
+                st.markdown(detail)
+
+    st.divider()
+    with st.expander("For engineers: exact numbers and the raw ranked passages"):
+        if run is not None:
+            st.caption(
+                "The scoreboard above without the explanation, in the units "
+                "`results.md` reports."
+            )
+            st.dataframe(
+                [
+                    {"metric": row["metric"], "score": row["score"]}
+                    for row in metrics_rows(run.metrics)
+                ],
+                hide_index=True,
+            )
+
+        st.caption(
+            "What the search actually returned for any query, ranked. This is the "
+            "view to use when an answer looks wrong and the reason might be the "
+            "retrieval behind it."
+        )
         query = st.text_input("Query", key="passages_query")
         k = st.number_input("Results", min_value=1, max_value=MAX_K, value=DEFAULT_K)
 
         if not query:
-            st.caption("Type a query. Nothing is sent anywhere; retrieval runs locally.")
+            st.caption("Type a query. Nothing is sent anywhere; search runs locally.")
         else:
             rows = results_rows(retriever.retrieve(query, k=int(k)))
             st.dataframe(
@@ -378,40 +535,6 @@ def main() -> None:
             for row in rows:
                 with st.expander(f"{row['rank']}. {row['chunk_id']} - {row['citation']}"):
                     st.write(row["text"])
-
-    with evaluation_tab:
-        st.caption(
-            "Retrieval is scored here, live, against the 20 labelled questions this "
-            "project is built around. The answer grading is read from the committed "
-            "report, because re-running it costs forty model calls."
-        )
-
-        golden_path = settings.data_dir / "golden" / "milestone1.yaml"
-        run, questions = load_eval(retriever, chunk_count, str(golden_path))
-        if run is None:
-            st.info(f"No golden set at {golden_path}, so there is nothing to score against.")
-        else:
-            st.subheader("Retrieval")
-            st.dataframe(metrics_rows(run.metrics), hide_index=True)
-            st.caption(
-                "Per question. A rank of 0 means retrieval returned no labelled "
-                "passage at any depth. Unanswerable questions have no labelled "
-                "passage, so they cannot be a miss."
-            )
-            st.dataframe(question_rows(run, questions), hide_index=True)
-
-        st.subheader("Answers")
-        answers_path = settings.data_dir.parent / "answers.md"
-        try:
-            markdown = answers_path.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            st.info(f"No {answers_path.name} yet. Run `make judge` to write one.")
-        else:
-            summary, detail = answers_report(markdown)
-            st.markdown(summary)
-            if detail:
-                with st.expander("Every answer, and the judge's reason for each mark"):
-                    st.markdown(detail)
 
 
 if __name__ == "__main__":

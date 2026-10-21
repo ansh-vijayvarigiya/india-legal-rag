@@ -109,7 +109,7 @@ def test_other_errors_are_shown_as_they_arrived():
     assert rate_limit_message(LLMError(plain)) == plain
 
 
-# --- the evaluation tab ---------------------------------------------------
+# --- the scoreboard -------------------------------------------------------
 
 
 def _question(
@@ -117,8 +117,9 @@ def _question(
     category: str = "single_clause",
     relevant: tuple[str, ...] = ("a#0000",),
     answerable: bool = True,
+    text: str = "a question",
 ) -> GoldenQuestion:
-    return GoldenQuestion(qid, "a question", relevant, category, answerable, None)
+    return GoldenQuestion(qid, text, relevant, category, answerable, None)
 
 
 def _run(results: list[QuestionResult]) -> EvalRun:
@@ -149,40 +150,58 @@ def test_metrics_rows_report_the_headline_numbers():
     assert rows[4]["score"] == 0.73
 
 
-def test_question_rows_give_the_rank_of_the_first_labelled_chunk():
-    run = _run([QuestionResult("q001", ("x#0000", "a#0009", "y#0000"), ("a#0009",), True)])
-    row = question_rows(run, [_question("q001")])[0]
-    assert row["qid"] == "q001"
-    assert row["type"] == "single_clause"
-    assert row["first labelled at rank"] == 2
-    assert row["found in top 20"] == "yes"
+def test_every_metric_says_what_it_means_in_words():
+    """The number alone is the problem this table exists to fix: 0.78 means
+    nothing to a reader who has not met recall before."""
+    for row in metrics_rows(_run([]).metrics):
+        meaning = row["what it means"]
+        assert meaning and len(meaning.split()) >= 5
+        assert row["metric"] not in meaning
 
 
-def test_question_rows_name_which_expected_chunks_are_the_labels():
-    run = _run([QuestionResult("q014", ("a#0001", "b#0002"), ("a#0001", "b#0002"), True)])
-    row = question_rows(run, [_question("q014", relevant=("a#0001", "b#0002"))])[0]
-    assert row["labelled chunks"] == "a#0001, b#0002"
-    assert row["labelled in top 5"] == "2 of 2"
-    assert row["first labelled at rank"] == 1
+def test_question_rows_show_the_question_rather_than_chunk_ids():
+    run = _run([QuestionResult("q001", ("a#0009",), ("a#0009",), True)])
+    row = question_rows(run, [_question("q001", text="What is the Bank Rate?")])[0]
+    assert row["question"] == "What is the Bank Rate?"
+    assert row["kind"] == "one paragraph"
+    assert row["found the answer?"] == "yes"
+    assert row["first hit at"] == "1"
+
+
+def test_question_rows_shorten_a_long_question():
+    run = _run([QuestionResult("q001", ("a#0000",), ("a#0000",), True)])
+    long_text = "What is the minimum proportion " * 10
+    row = question_rows(run, [_question("q001", text=long_text)])[0]
+    assert len(row["question"]) <= 78
+    assert row["question"].endswith("…")
+    # Cut on a word boundary, so the row does not end in half a word.
+    kept = row["question"][:-1]
+    assert long_text.startswith(kept)
+    assert long_text[len(kept)] == " "
 
 
 def test_question_rows_do_not_call_a_partial_hit_found():
-    """q013 answers from one labelled chunk while the second sits at rank 15, so a
-    row saying only "found: yes" would be true and misleading."""
+    """q013 answers from one labelled paragraph while the second sits at rank 15,
+    so a row saying only "found: yes" would be true and misleading."""
     retrieved = tuple(f"x#000{i}" for i in range(13)) + ("a#0013",) + ("y#0000",) * 6
     run = _run([QuestionResult("q013", retrieved, ("a#0000", "a#0013"), True)])
     row = question_rows(run, [_question("q013", relevant=("a#0000", "a#0013"))])[0]
-    assert row["labelled in top 5"] == "0 of 2"
-    assert row["first labelled at rank"] == 14
-    assert row["found in top 20"] == "yes"
+    assert row["found the answer?"] == "partly"
+    assert row["first hit at"] == "14"
+
+
+def test_question_rows_call_both_paragraphs_found_when_both_are_in_reach():
+    run = _run([QuestionResult("q014", ("a#0001", "b#0002"), ("a#0001", "b#0002"), True)])
+    row = question_rows(run, [_question("q014", relevant=("a#0001", "b#0002"))])[0]
+    assert row["found the answer?"] == "yes"
 
 
 def test_question_rows_mark_a_question_retrieval_never_found():
     """q008 is the one answerable question this baseline retrieves at no depth."""
     run = _run([QuestionResult("q008", ("x#0000",), ("a#0000",), False)])
     row = question_rows(run, [_question("q008")])[0]
-    assert row["first labelled at rank"] == 0
-    assert row["found in top 20"] == "no"
+    assert row["found the answer?"] == "no"
+    assert row["first hit at"] == "never"
 
 
 def test_question_rows_cannot_score_an_unanswerable_question_as_a_miss():
@@ -192,9 +211,9 @@ def test_question_rows_cannot_score_an_unanswerable_question_as_a_miss():
     row = question_rows(
         run, [_question("q019", category="unanswerable", relevant=(), answerable=False)]
     )[0]
-    assert row["type"] == "unanswerable"
-    assert row["labelled chunks"] == "none, by design"
-    assert row["found in top 20"] == "n/a"
+    assert row["kind"] == "not in this corpus"
+    assert row["found the answer?"] == "n/a"
+    assert row["first hit at"] == "-"
 
 
 def test_answers_report_splits_the_summary_from_the_per_answer_detail():

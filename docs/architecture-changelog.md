@@ -126,3 +126,26 @@ with `results.md`.
 minute can be refused; the page says to wait. The committed answer grading is a snapshot of one run, so
 it can and will age. Retrieval is still the bottleneck the scoreboard makes obvious: `q008` is missed at
 every depth.
+
+## 2026-10-21 - The page becomes one page, written for a reader who is not an engineer
+
+**What changed.** `legalrag.inspector` lost its tab bar. It is now a single page: question and answer,
+then the scoreboard as a sentence and two tables, then the committed answer grading, then a collapsed
+engineering section. The metric table gained a column that says what each number means, and the
+per-question table shows the question text and a plain outcome instead of chunk ids.
+
+**Shape.** Nothing moved between modules and no measurement changed - the same golden set, the same
+metrics, the same committed report. What changed is presentation: section headings replace the tab bar,
+and both row builders now return reader-facing rows instead of debug rows.
+
+**Deliberately absent.** No explanation page in front of the tabs, no charts, no second "simple mode"
+alongside the detailed one.
+
+**Now checkable that was not before.** That a reader who does not work in this field can tell, without
+being told, what the search is scored against and whether a question was found - which is the only
+audience a public demo has.
+
+**Still weak.** The per-question question text is shortened at 78 characters, so a long question is
+readable but incomplete on the page. `precision@5` stays at 0.22 and needed a paragraph of explanation
+rather than a better number; that is honest, but it is still a number a visitor must be talked out of
+misreading.

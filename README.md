@@ -29,7 +29,7 @@ answer. Grading those answers is the step after that.
 - [The golden set](#the-golden-set)
 - [Reading the numbers](#reading-the-numbers)
 - [Asking questions](#asking-questions)
-- [The evaluation tab](#the-evaluation-tab)
+- [The evaluation, on the page](#the-evaluation-on-the-page)
 - [Grading the answers](#grading-the-answers)
 - [The retrieval inspector](#the-retrieval-inspector)
 - [Configuration](#configuration)
@@ -207,9 +207,9 @@ The first boot takes a minute or two, because the host downloads the embedding
 model and embeds 154 chunks on CPU before the first page renders. The vector index
 is rebuilt per process and is not committed; the chunk store it is rebuilt from is.
 
-Without the key the app still runs. Retrieval, the Passages tab and the whole
-Evaluation tab work, and only written answers are off. That is deliberate: the
-evaluation is the claim this project makes, and it does not depend on a model.
+Without the key the app still runs. The search, both evaluation sections and the
+raw ranked passages all work, and only written answers are off. That is deliberate:
+the evaluation is the claim this project makes, and it does not depend on a model.
 
 **Note where the time goes.** Ingest is cheap: it parses and chunks text and
 writes JSONL, so it finishes in seconds and downloads nothing. The slow part is
@@ -410,7 +410,7 @@ paragraph. That is the entire point of the repository.
 ### What CI runs
 
 `.github/workflows/ci.yml` runs on Python 3.11 on Linux, installs the package
-and runs `pytest -m "not slow"`, which is **141 of the 144 tests**. Only the three
+and runs `pytest -m "not slow"`, which is **143 of the 146 tests**. Only the three
 embedding tests are excluded, and they are excluded for the model download, not
 for the logic.
 
@@ -443,7 +443,7 @@ tests/test_runner.py            run_eval, corpus validation, k_max guard
 tests/test_report.py            report rendering
 tests/test_eval_cli.py          eval CLI end to end
 tests/test_ingest_cli.py        ingest CLI end to end
-tests/test_inspector.py         inspector row building, evaluation tab
+tests/test_inspector.py         inspector row building, the page's tables
 ```
 
 `test_golden_committed.py` deserves a mention: it is what stops the committed
@@ -563,12 +563,12 @@ What this actually says:
 
 ## Asking questions
 
-The first tab takes a question and returns an answer written from the retrieved
-passages, with those passages numbered underneath so that the `[1]` markers in
-the answer point at something checkable. A **Grade this answer** button sits under
-the answer and runs the second model on exactly that answer, printing its three
-marks and its reason on the same page - so the evaluation is visible next to the
-thing being evaluated, not only in a file.
+The page opens with a question box and returns an answer written from the
+retrieved passages, with those passages numbered underneath so that the `[1]`
+markers in the answer point at something checkable. A **Grade this answer** button
+sits under the answer and runs the second model on exactly that answer, printing
+its three marks and its reason on the same page - so the evaluation is visible next
+to the thing being evaluated, not only in a file.
 
 Answers need a free key. Groq is the default; Google AI Studio works too, since
 both speak the same OpenAI-compatible interface.
@@ -580,9 +580,10 @@ both speak the same OpenAI-compatible interface.
 LEGALRAG_LLM_API_KEY=gsk_your_key_here
 ```
 
-`.env` is git-ignored. Without a key the app still runs: retrieval, the
-evaluation and the Passages tab all work, and the Answer tab says what is missing
-rather than failing.
+`.env` is git-ignored. Without a key the app still runs: the search, both
+evaluation sections and the raw passages all work, and only the written answer says
+what is missing rather than failing. A hosted copy reads the same variable from the
+app's secrets instead - see [Deploying it](#deploying-it).
 
 ### What the model is told
 
@@ -626,39 +627,48 @@ The answers are graded separately — see
 
 ---
 
-## The evaluation tab
+## The evaluation, on the page
 
-An evaluation nobody can see is a claim, not evidence. The third tab puts it on
-the page, in two halves that are deliberately sourced differently.
+An evaluation nobody can see is a claim, not evidence. The page states it, in two
+halves that are deliberately sourced differently.
 
-**Retrieval is scored live.** The tab runs all 20 golden questions through the
-index the app is actually holding, prints the same six numbers `results.md`
-reports, then one row per question: its type, its labelled chunk ids, how many of
-those labels landed in the top 5, the rank of the first one, and whether the
-label was found at any depth. This is computed, not copied, so a corpus that
-drifts away from the committed baseline shows up as a disagreement on screen
-instead of a stale file nobody re-reads. It costs twenty local queries and no
-model calls, so it is cached until the chunk count changes.
+The first version of this put the evaluation behind a tab named after it, and a
+reader with no background in the field could not tell what any of it meant: three
+tabs to choose between, `recall@5` unexplained, and a column of chunk ids like
+`rbi:13736#0000`. The page is now one page read top to bottom - question first,
+scoreboard second, engineering detail folded away last - and every number carries
+the sentence that says what it is.
 
-Two details in that table are there on purpose:
+**Search is scored live.** The page runs all 20 golden questions through the index
+the app is actually holding, prints the same six numbers `results.md` reports, then
+one row per question: the question itself, what kind of question it is, whether
+the paragraph holding the answer was found, and at what rank. This is computed, not
+copied, so a corpus that drifts away from the committed baseline shows up as a
+disagreement on screen instead of a stale file nobody re-reads. It costs twenty
+local queries and no model calls, so it is cached until the chunk count changes.
 
+Three choices in those tables are there on purpose:
+
+- **The question text, not the ids.** A chunk id is meaningful to whoever made it
+  and to nobody else. The row carries the question, shortened at a word.
 - **A partial hit is not a yes.** `q012` and `q013` put one of their two labelled
-  chunks in the top 5 and the other at rank 6 and rank 15, so the row says
-  `1 of 2` rather than a tick. Without that column a question could read as fully
-  retrieved while the answer was written from half the evidence.
-- **An unanswerable question cannot be a miss.** There is no labelled chunk to
-  find, so the row says `n/a`. Scoring the correct result as a failure is how a
-  harness teaches you to distrust it.
+  paragraphs in the top 5 and the other at rank 6 and rank 15, so the row says
+  `partly`. Without that, a question could read as fully retrieved while the answer
+  was written from half the evidence.
+- **An unanswerable question cannot be a miss.** There is no labelled paragraph to
+  find, so the row says `n/a` and the kind column says "not in this corpus".
+  Scoring the correct result as a failure is how a harness teaches you to distrust
+  it.
 
-**Answer grading is read from the committed report.** Re-running it in the
-browser would cost forty model calls per page load, so the tab renders the
-summary from `answers.md` - the counts and the verdict table - with each answer's
-reason folded away underneath. The button under an answer is the live half: it
-runs the same judge on the answer in front of you, one call, on request.
+**Answer grading is read from the committed report.** Re-running it in the browser
+would cost forty model calls per page load, so the page renders the summary from
+`answers.md` - the counts and the verdict table - with each answer's reason folded
+away underneath. The button under an answer is the live half: it runs the same
+judge on the answer in front of you, one call, on request.
 
-The split is stated on the page itself, because a scoreboard that mixes last
-week's numbers with this minute's numbers without saying which is which is worse
-than no scoreboard.
+The split is stated on the page itself, because a scoreboard that mixes last week's
+numbers with this minute's numbers without saying which is which is worse than no
+scoreboard.
 
 ---
 
@@ -863,7 +873,7 @@ message on stderr:
 | ingest produced no chunks at all | `error: no chunks were produced` |
 | `k_max` below the deepest reported k | `ValueError` naming both numbers |
 | the index holds fewer chunks than the store | `error: indexed N of M chunks` |
-| no AI key configured | answers are off: the Answer tab says so, and the passages still show |
+| no AI key configured | answers are off: the answer box says so, and the passages still show |
 | the key is rejected, or the provider is unreachable | the provider's message is shown, and the passages still show |
 | the free-tier quota is spent | a plain-language message saying to wait about twenty seconds |
 | the reply was cut off at the token limit | an error rather than a half sentence that reads as a finished one |
@@ -932,7 +942,7 @@ data/
   documents/             generated: documents.jsonl
   qdrant/                generated: local Qdrant storage
 
-tests/                   144 tests
+tests/                   146 tests
 docs/                    decisions, changelog, glossary, troubleshooting
 docs/diagrams/           5 architecture diagrams (HTML, self-contained)
 docs/superpowers/        design spec and the task-by-task plan
@@ -951,8 +961,8 @@ are committed on purpose.
 ## Development
 
 ```bash
-make test        # pytest -m "not slow"  - 141 tests, no model download
-make test-all    # pytest                - 144 tests, downloads the model
+make test        # pytest -m "not slow"  - 143 tests, no model download
+make test-all    # pytest                - 146 tests, downloads the model
 ```
 
 The suite takes about a minute because the CLI tests embed real text with the

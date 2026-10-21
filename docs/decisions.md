@@ -466,6 +466,9 @@ because it is two model calls per question and a free plan meters tokens per min
 
 ## D-023 - The evaluation is shown in the interface, from two different sources (2026-10-21)
 
+**Superseded in part by D-024:** the page is one page read top to bottom, not three tabs. The split
+between live retrieval scoring and the committed answer grading still stands.
+
 **Decision.** The inspector gets a third tab, `Evaluation`, and every answer gets a `Grade this
 answer` button.
 
@@ -501,3 +504,33 @@ spends a second call, so it is a button and it says so. The live judge and the b
 model with the same prompt and the same reasoning setting, so a mark given in the browser should match
 one given by `make judge`; they are not byte-identical because generation is stochastic, and the reason
 line is what makes either checkable by hand.
+
+## D-024 - The page is one page, and it explains itself (2026-10-21)
+
+**Decision.** Remove the tabs. The app is one page read top to bottom: a question box and the answer,
+then "how good is this search?" as a headline sentence plus two tables, then the committed answer
+grading, then a collapsed section for engineers holding the exact metric table and the raw ranked
+passages. Every metric row carries a sentence saying what the number means. The per-question table
+shows the question text and a `yes` / `partly` / `no` / `n/a` outcome instead of chunk ids and label
+counts.
+
+**Why.** D-023 added the evaluation to the interface and it was accurate, and still not usable. The
+first reader outside the field opened it and could not tell what it was for: three tabs to decode before
+reading anything, `recall@5` with no translation, `rbi:13736#0000` where a question should be, and a
+`1 of 2` column that only makes sense if you already know what a labelled chunk is. The page was
+organised around its own construction - which parts are computed and which are read from a report -
+rather than around what a visitor came to find out. A tab bar asks a newcomer to choose a door before
+knowing what the rooms are for, and there were only three rooms.
+
+None of the measurement changed. The same twenty questions run, the same numbers are printed, and the
+same answer grading is shown. What changed is who the page is written for.
+
+**Rejected.** Adding an explanation page in front of the tabs, which keeps the structure that caused
+the problem. Also rejected: dropping the engineering detail, because the whole claim of the project is
+that these numbers are real and checkable, so the raw tables and the ranked passages stay - folded, at
+the bottom, labelled as the engineering view.
+
+**Cost if wrong.** A table with a sentence per row is wider than a table of numbers, so a reviewer
+scanning for a metric scrolls more than they used to; the exact table is kept in the collapsed section
+for that reader. The plain-language column is written by hand and will need editing if the metric set
+changes, which is the usual cost of prose next to data.

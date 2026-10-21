@@ -13,6 +13,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      # The default Linux torch wheel drags in about 2.5 GB of CUDA libraries
+      # this runner has no GPU for. Installing the CPU build first keeps pip from
+      # fetching triton and the nvidia wheels at all; one of them truncates at
+      # 163.6 MB on this runner every time, which failed the job before a single
+      # test ran.
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -e ".[dev]"
       # Runs the evaluation CLI against the committed snapshots, so the smoke
       # test covers the whole pipeline and not just the units.
